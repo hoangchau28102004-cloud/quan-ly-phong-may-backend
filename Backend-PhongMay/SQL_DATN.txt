@@ -1,0 +1,163 @@
+-- =========================================================
+-- SCRIPT TẠO CƠ SỞ DỮ LIỆU QUẢN LÝ PHÒNG MÁY KHOA CNTT
+-- Hệ quản trị: MySQL
+-- =========================================================
+
+-- 1. BẢNG DANH MỤC ĐỘC LẬP (Tạo trước vì không phụ thuộc bảng khác)
+
+CREATE TABLE vai_tro (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_vai_tro VARCHAR(50) NOT NULL UNIQUE -- 'ADMIN', 'GIANG_VIEN', 'SINH_VIEN'
+);
+
+CREATE TABLE lop_hoc (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ma_lop VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE mon_hoc (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_mon VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE ca_hoc (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    gio_bat_dau TIME NOT NULL,
+    gio_ket_thuc TIME NOT NULL
+);
+
+CREATE TABLE phong_may (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_phong VARCHAR(50) NOT NULL UNIQUE,
+    trang_thai ENUM('HOAT_DONG', 'BAO_TRI', 'KHOA') DEFAULT 'HOAT_DONG'
+);
+
+CREATE TABLE cau_hinh (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cpu VARCHAR(100) NOT NULL,
+    ram VARCHAR(50) NOT NULL,
+    o_cung VARCHAR(100) NOT NULL,
+    gpu VARCHAR(100)
+);
+
+-- 2. BẢNG PHỤ THUỘC BẬC 1 (Có chứa khóa ngoại từ các bảng trên)
+
+CREATE TABLE nguoi_dung (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tai_khoan VARCHAR(50) NOT NULL UNIQUE, -- MSSV hoặc Mã GV
+    mat_khau VARCHAR(255) NOT NULL,
+    ho_ten VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    vai_tro_id INT NOT NULL,
+    lop_hoc_id INT DEFAULT NULL, -- Admin/Giảng viên có thể NULL
+    FOREIGN KEY (vai_tro_id) REFERENCES vai_tro(id) ON DELETE RESTRICT,
+    FOREIGN KEY (lop_hoc_id) REFERENCES lop_hoc(id) ON DELETE SET NULL
+);
+
+CREATE TABLE thiet_bi (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_tb VARCHAR(100) NOT NULL,
+    so_luong_con INT NOT NULL DEFAULT 0,
+    phong_may_id INT, -- Thiết bị được bố trí cố định tại phòng nào (có thể NULL nếu ở kho)
+    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE SET NULL
+);
+
+CREATE TABLE may_tinh (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ma_may VARCHAR(50) NOT NULL UNIQUE,
+    ma_qr VARCHAR(255) NOT NULL UNIQUE,
+    ip_may VARCHAR(50),
+    he_dieu_hanh VARCHAR(50),
+    trang_thai ENUM('TOT', 'LOI', 'DANG_SUA') DEFAULT 'TOT',
+    phong_may_id INT NOT NULL,
+    cau_hinh_id INT NOT NULL,
+    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE,
+    FOREIGN KEY (cau_hinh_id) REFERENCES cau_hinh(id) ON DELETE RESTRICT
+);
+
+-- 3. BẢNG NGHIỆP VỤ (Vận hành & Lịch học)
+
+CREATE TABLE lich_phong_may (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ngay_hoc DATE NOT NULL,
+    tuan_hoc INT,
+    thu INT, -- 2,3,4,5,6,7
+    tiet_bat_dau INT,
+    tiet_ket_thuc INT,
+    phong_may_id INT NOT NULL,
+    lop_hoc_id INT NOT NULL,
+    nguoi_dung_id INT NOT NULL, -- Giảng viên đứng lớp
+    mon_hoc_id INT NOT NULL,
+    ca_hoc_id INT NOT NULL,
+    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE,
+    FOREIGN KEY (lop_hoc_id) REFERENCES lop_hoc(id) ON DELETE CASCADE,
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
+    FOREIGN KEY (mon_hoc_id) REFERENCES mon_hoc(id) ON DELETE CASCADE,
+    FOREIGN KEY (ca_hoc_id) REFERENCES ca_hoc(id) ON DELETE RESTRICT,
+    -- Ràng buộc chống trùng lịch: 1 phòng không thể có 2 lịch trùng ca và ngày
+    CONSTRAINT chk_trung_lich UNIQUE (phong_may_id, ngay_hoc, ca_hoc_id) 
+);
+
+CREATE TABLE dk_phong_may (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ngay_yeu_cau DATE NOT NULL,
+    trang_thai ENUM('CHO_DUYET', 'DA_DUYET', 'TU_CHOI') DEFAULT 'CHO_DUYET',
+    nguoi_dung_id INT NOT NULL, -- Giảng viên đăng ký
+    phong_may_id INT NOT NULL,
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
+    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE
+);
+
+-- 4. BẢNG TƯƠNG TÁC LỚP HỌC (Quét QR Điểm danh)
+
+CREATE TABLE diem_danh (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tt_diem_danh ENUM('CO_MAT', 'VANG_MAT', 'TRE') DEFAULT 'CO_MAT',
+    tt_may_tinh ENUM('BINH_THUONG', 'CO_LOI') DEFAULT 'BINH_THUONG',
+    thoi_gian_dd DATETIME NOT NULL,
+    nguoi_dung_id INT NOT NULL, -- Sinh viên điểm danh
+    lich_phong_may_id INT NOT NULL,
+    may_tinh_id INT NOT NULL, -- Sinh viên ngồi máy nào
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
+    FOREIGN KEY (lich_phong_may_id) REFERENCES lich_phong_may(id) ON DELETE CASCADE,
+    FOREIGN KEY (may_tinh_id) REFERENCES may_tinh(id) ON DELETE CASCADE,
+    -- Ràng buộc: 1 sinh viên chỉ điểm danh 1 lần trong 1 ca học
+    CONSTRAINT chk_diem_danh UNIQUE (nguoi_dung_id, lich_phong_may_id)
+);
+
+-- 5. BẢNG SỰ CỐ & BẢO TRÌ
+
+CREATE TABLE bao_cao_su_co (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    mo_ta TEXT NOT NULL,
+    trang_thai ENUM('CHO_XU_LY', 'DANG_XU_LY', 'DA_XU_LY') DEFAULT 'CHO_XU_LY',
+    may_tinh_id INT NOT NULL,
+    nguoi_dung_id INT NOT NULL, -- Ai báo cáo (SV/GV)
+    FOREIGN KEY (may_tinh_id) REFERENCES may_tinh(id) ON DELETE CASCADE,
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE
+);
+
+CREATE TABLE phieu_bao_tri (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    chi_tiet_sua TEXT NOT NULL,
+    ngay_bao_tri DATETIME NOT NULL,
+    nguoi_sua VARCHAR(100), -- Có thể là nhân viên kỹ thuật ngoài
+    chi_phi DECIMAL(10,2) DEFAULT 0.00,
+    bao_cao_su_co_id INT NOT NULL UNIQUE, -- 1 báo cáo chỉ có 1 phiếu bảo trì hoàn tất
+    nguoi_dung_id INT NOT NULL, -- Admin lập phiếu
+    FOREIGN KEY (bao_cao_su_co_id) REFERENCES bao_cao_su_co(id) ON DELETE CASCADE,
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE RESTRICT
+);
+
+-- 6. BẢNG MƯỢN TRẢ THIẾT BỊ
+
+CREATE TABLE phieu_muon (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    so_luong INT NOT NULL DEFAULT 1,
+    ngay_muon DATETIME NOT NULL,
+    trang_thai ENUM('DANG_MUON', 'DA_TRA', 'QUA_HAN') DEFAULT 'DANG_MUON',
+    nguoi_dung_id INT NOT NULL, -- Ai mượn
+    thiet_bi_id INT NOT NULL, -- Mượn thiết bị gì
+    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
+    FOREIGN KEY (thiet_bi_id) REFERENCES thiet_bi(id) ON DELETE CASCADE
+);
