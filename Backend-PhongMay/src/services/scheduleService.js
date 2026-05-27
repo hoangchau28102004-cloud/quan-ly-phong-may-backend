@@ -1,12 +1,11 @@
-const db = require('../config/db'); // Đường dẫn tới file kết nối CSDL của bạn
+const db = require('../config/db');
 
-const ScheduleModel = {
-  // Lấy lịch học theo tuần
-  getSchedule: (tuan_hoc, lop_hoc_id, nguoi_dung_id, callback) => {
+const getSchedule = (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
+  return new Promise((resolve, reject) => {
     let sql = `
       SELECT 
         lpm.id, lpm.ngay_hoc, lpm.thu, lpm.tiet_bat_dau, lpm.tiet_ket_thuc, lpm.tuan_hoc,
-        pm.ten_phong, 
+        pm.ten_phong, pm.id as phong_may_id,
         lh.ma_lop, 
         mh.ten_mon, 
         ch.gio_bat_dau, ch.gio_ket_thuc,
@@ -31,17 +30,24 @@ const ScheduleModel = {
 
     sql += ` ORDER BY lpm.ngay_hoc ASC, lpm.tiet_bat_dau ASC`;
 
-    db.query(sql, queryParams, callback);
-  },
+    db.query(sql, queryParams, (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
+};
 
-  // Đăng ký mượn phòng
-  insertRoomBooking: (data, callback) => {
+const bookRoom = (data) => {
+  return new Promise((resolve, reject) => {
     const sql = `
       INSERT INTO dk_phong_may (ngay_yeu_cau, nguoi_dung_id, phong_may_id, trang_thai) 
       VALUES (?, ?, ?, 'CHO_DUYET')
     `;
-    db.query(sql, [data.ngay_yeu_cau, data.nguoi_dung_id, data.phong_may_id], callback);
-  }
+    db.query(sql, [data.ngay_yeu_cau, data.nguoi_dung_id, data.phong_may_id], (err, results) => {
+      if (err) return reject(err);
+      resolve(results);
+    });
+  });
 };
 
-module.exports = ScheduleModel;
+module.exports = { getSchedule, bookRoom };

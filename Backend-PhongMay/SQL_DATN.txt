@@ -1,163 +1,751 @@
 -- =========================================================
 -- SCRIPT TẠO CƠ SỞ DỮ LIỆU QUẢN LÝ PHÒNG MÁY KHOA CNTT
 -- Hệ quản trị: MySQL
+-- Tên DB: quanlyphongmay
 -- =========================================================
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1
+-- Generation Time: May 26, 2026 at 07:07 AM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.0.30
 
--- 1. BẢNG DANH MỤC ĐỘC LẬP (Tạo trước vì không phụ thuộc bảng khác)
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
-CREATE TABLE vai_tro (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ten_vai_tro VARCHAR(50) NOT NULL UNIQUE -- 'ADMIN', 'GIANG_VIEN', 'SINH_VIEN'
-);
 
-CREATE TABLE lop_hoc (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ma_lop VARCHAR(50) NOT NULL UNIQUE
-);
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
-CREATE TABLE mon_hoc (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ten_mon VARCHAR(255) NOT NULL
-);
+--
+-- Database: `pmcnttckc`
+--
 
-CREATE TABLE ca_hoc (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    gio_bat_dau TIME NOT NULL,
-    gio_ket_thuc TIME NOT NULL
-);
+-- --------------------------------------------------------
 
-CREATE TABLE phong_may (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ten_phong VARCHAR(50) NOT NULL UNIQUE,
-    trang_thai ENUM('HOAT_DONG', 'BAO_TRI', 'KHOA') DEFAULT 'HOAT_DONG'
-);
+--
+-- Table structure for table `bao_cao_su_co`
+--
 
-CREATE TABLE cau_hinh (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    cpu VARCHAR(100) NOT NULL,
-    ram VARCHAR(50) NOT NULL,
-    o_cung VARCHAR(100) NOT NULL,
-    gpu VARCHAR(100)
-);
+CREATE TABLE `bao_cao_su_co` (
+  `id` int(11) NOT NULL,
+  `mo_ta` text NOT NULL,
+  `trang_thai` enum('CHO_XU_LY','DANG_XU_LY','DA_XU_LY') DEFAULT 'CHO_XU_LY',
+  `may_tinh_id` int(11) NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 2. BẢNG PHỤ THUỘC BẬC 1 (Có chứa khóa ngoại từ các bảng trên)
+-- --------------------------------------------------------
 
-CREATE TABLE nguoi_dung (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    tai_khoan VARCHAR(50) NOT NULL UNIQUE, -- MSSV hoặc Mã GV
-    mat_khau VARCHAR(255) NOT NULL,
-    ho_ten VARCHAR(100) NOT NULL,
-    email VARCHAR(100) UNIQUE,
-    vai_tro_id INT NOT NULL,
-    lop_hoc_id INT DEFAULT NULL, -- Admin/Giảng viên có thể NULL
-    FOREIGN KEY (vai_tro_id) REFERENCES vai_tro(id) ON DELETE RESTRICT,
-    FOREIGN KEY (lop_hoc_id) REFERENCES lop_hoc(id) ON DELETE SET NULL
-);
+--
+-- Table structure for table `cau_hinh`
+--
 
-CREATE TABLE thiet_bi (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ten_tb VARCHAR(100) NOT NULL,
-    so_luong_con INT NOT NULL DEFAULT 0,
-    phong_may_id INT, -- Thiết bị được bố trí cố định tại phòng nào (có thể NULL nếu ở kho)
-    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE SET NULL
-);
+CREATE TABLE `cau_hinh` (
+  `id` int(11) NOT NULL,
+  `mainboard` varchar(100) DEFAULT NULL,
+  `cpu` varchar(100) NOT NULL,
+  `ram` varchar(50) NOT NULL,
+  `o_cung` varchar(100) NOT NULL,
+  `gpu` varchar(100) DEFAULT NULL,
+  `man_hinh` varchar(100) DEFAULT NULL,
+  `nam_trang_bi` int(4) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE may_tinh (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ma_may VARCHAR(50) NOT NULL UNIQUE,
-    ma_qr VARCHAR(255) NOT NULL UNIQUE,
-    ip_may VARCHAR(50),
-    he_dieu_hanh VARCHAR(50),
-    trang_thai ENUM('TOT', 'LOI', 'DANG_SUA') DEFAULT 'TOT',
-    phong_may_id INT NOT NULL,
-    cau_hinh_id INT NOT NULL,
-    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE,
-    FOREIGN KEY (cau_hinh_id) REFERENCES cau_hinh(id) ON DELETE RESTRICT
-);
+--
+-- Dumping data for table `cau_hinh`
+--
 
--- 3. BẢNG NGHIỆP VỤ (Vận hành & Lịch học)
+INSERT INTO `cau_hinh` (`id`, `mainboard`, `cpu`, `ram`, `o_cung`, `gpu`, `man_hinh`, `nam_trang_bi`) VALUES
+(1, 'ASUS PRIME H310M-K', 'Intel Core i3 9100', 'Kingmax 8GB', 'HDD Western Digital 1TB', NULL, 'LCD 19.5\" DELL', 2020),
+(2, 'Asus H81 M-P', 'Intel Core I3 4170 3.7Ghz', 'Kingston DDR3 8GB', 'HDD 500GB', NULL, 'LCD 17\"', 2017);
 
-CREATE TABLE lich_phong_may (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ngay_hoc DATE NOT NULL,
-    tuan_hoc INT,
-    thu INT, -- 2,3,4,5,6,7
-    tiet_bat_dau INT,
-    tiet_ket_thuc INT,
-    phong_may_id INT NOT NULL,
-    lop_hoc_id INT NOT NULL,
-    nguoi_dung_id INT NOT NULL, -- Giảng viên đứng lớp
-    mon_hoc_id INT NOT NULL,
-    ca_hoc_id INT NOT NULL,
-    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE,
-    FOREIGN KEY (lop_hoc_id) REFERENCES lop_hoc(id) ON DELETE CASCADE,
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
-    FOREIGN KEY (mon_hoc_id) REFERENCES mon_hoc(id) ON DELETE CASCADE,
-    FOREIGN KEY (ca_hoc_id) REFERENCES ca_hoc(id) ON DELETE RESTRICT,
-    -- Ràng buộc chống trùng lịch: 1 phòng không thể có 2 lịch trùng ca và ngày
-    CONSTRAINT chk_trung_lich UNIQUE (phong_may_id, ngay_hoc, ca_hoc_id) 
-);
+-- --------------------------------------------------------
 
-CREATE TABLE dk_phong_may (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ngay_yeu_cau DATE NOT NULL,
-    trang_thai ENUM('CHO_DUYET', 'DA_DUYET', 'TU_CHOI') DEFAULT 'CHO_DUYET',
-    nguoi_dung_id INT NOT NULL, -- Giảng viên đăng ký
-    phong_may_id INT NOT NULL,
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
-    FOREIGN KEY (phong_may_id) REFERENCES phong_may(id) ON DELETE CASCADE
-);
+--
+-- Table structure for table `ca_hoc`
+--
 
--- 4. BẢNG TƯƠNG TÁC LỚP HỌC (Quét QR Điểm danh)
+CREATE TABLE `ca_hoc` (
+  `id` int(11) NOT NULL,
+  `gio_bat_dau` time NOT NULL,
+  `gio_ket_thuc` time NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE diem_danh (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    tt_diem_danh ENUM('CO_MAT', 'VANG_MAT', 'TRE') DEFAULT 'CO_MAT',
-    tt_may_tinh ENUM('BINH_THUONG', 'CO_LOI') DEFAULT 'BINH_THUONG',
-    thoi_gian_dd DATETIME NOT NULL,
-    nguoi_dung_id INT NOT NULL, -- Sinh viên điểm danh
-    lich_phong_may_id INT NOT NULL,
-    may_tinh_id INT NOT NULL, -- Sinh viên ngồi máy nào
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
-    FOREIGN KEY (lich_phong_may_id) REFERENCES lich_phong_may(id) ON DELETE CASCADE,
-    FOREIGN KEY (may_tinh_id) REFERENCES may_tinh(id) ON DELETE CASCADE,
-    -- Ràng buộc: 1 sinh viên chỉ điểm danh 1 lần trong 1 ca học
-    CONSTRAINT chk_diem_danh UNIQUE (nguoi_dung_id, lich_phong_may_id)
-);
+--
+-- Dumping data for table `ca_hoc`
+--
 
--- 5. BẢNG SỰ CỐ & BẢO TRÌ
+INSERT INTO `ca_hoc` (`id`, `gio_bat_dau`, `gio_ket_thuc`) VALUES
+(1, '07:00:00', '11:30:00'),
+(2, '13:00:00', '17:30:00');
 
-CREATE TABLE bao_cao_su_co (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    mo_ta TEXT NOT NULL,
-    trang_thai ENUM('CHO_XU_LY', 'DANG_XU_LY', 'DA_XU_LY') DEFAULT 'CHO_XU_LY',
-    may_tinh_id INT NOT NULL,
-    nguoi_dung_id INT NOT NULL, -- Ai báo cáo (SV/GV)
-    FOREIGN KEY (may_tinh_id) REFERENCES may_tinh(id) ON DELETE CASCADE,
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE
-);
+-- --------------------------------------------------------
 
-CREATE TABLE phieu_bao_tri (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    chi_tiet_sua TEXT NOT NULL,
-    ngay_bao_tri DATETIME NOT NULL,
-    nguoi_sua VARCHAR(100), -- Có thể là nhân viên kỹ thuật ngoài
-    chi_phi DECIMAL(10,2) DEFAULT 0.00,
-    bao_cao_su_co_id INT NOT NULL UNIQUE, -- 1 báo cáo chỉ có 1 phiếu bảo trì hoàn tất
-    nguoi_dung_id INT NOT NULL, -- Admin lập phiếu
-    FOREIGN KEY (bao_cao_su_co_id) REFERENCES bao_cao_su_co(id) ON DELETE CASCADE,
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE RESTRICT
-);
+--
+-- Table structure for table `dang_ky_mon_hoc`
+--
 
--- 6. BẢNG MƯỢN TRẢ THIẾT BỊ
+CREATE TABLE `dang_ky_mon_hoc` (
+  `id` int(11) NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL,
+  `lop_hoc_phan_id` int(11) NOT NULL,
+  `trang_thai_hoc` enum('CHINH_KHOA','HOC_LAI','HOC_GHEP','CAI_THIEN') DEFAULT 'CHINH_KHOA'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-CREATE TABLE phieu_muon (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    so_luong INT NOT NULL DEFAULT 1,
-    ngay_muon DATETIME NOT NULL,
-    trang_thai ENUM('DANG_MUON', 'DA_TRA', 'QUA_HAN') DEFAULT 'DANG_MUON',
-    nguoi_dung_id INT NOT NULL, -- Ai mượn
-    thiet_bi_id INT NOT NULL, -- Mượn thiết bị gì
-    FOREIGN KEY (nguoi_dung_id) REFERENCES nguoi_dung(id) ON DELETE CASCADE,
-    FOREIGN KEY (thiet_bi_id) REFERENCES thiet_bi(id) ON DELETE CASCADE
-);
+--
+-- Dumping data for table `dang_ky_mon_hoc`
+--
+
+INSERT INTO `dang_ky_mon_hoc` (`id`, `nguoi_dung_id`, `lop_hoc_phan_id`, `trang_thai_hoc`) VALUES
+(1, 3, 1, 'CHINH_KHOA'),
+(2, 3, 2, 'HOC_GHEP');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `diem_danh`
+--
+
+CREATE TABLE `diem_danh` (
+  `id` int(11) NOT NULL,
+  `tt_diem_danh` enum('CO_MAT','VANG_MAT','TRE') DEFAULT 'CO_MAT',
+  `tt_may_tinh` enum('BINH_THUONG','CO_LOI') DEFAULT 'BINH_THUONG',
+  `thoi_gian_dd` datetime NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL,
+  `lich_phong_may_id` int(11) NOT NULL,
+  `may_tinh_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `dk_phong_may`
+--
+
+CREATE TABLE `dk_phong_may` (
+  `id` int(11) NOT NULL,
+  `ngay_yeu_cau` date NOT NULL,
+  `trang_thai` enum('CHO_DUYET','DA_DUYET','TU_CHOI') DEFAULT 'CHO_DUYET',
+  `nguoi_dung_id` int(11) NOT NULL,
+  `phong_may_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `dk_phong_may`
+--
+
+INSERT INTO `dk_phong_may` (`id`, `ngay_yeu_cau`, `trang_thai`, `nguoi_dung_id`, `phong_may_id`) VALUES
+(1, '2026-05-25', 'CHO_DUYET', 4, 3),
+(2, '2026-05-29', 'CHO_DUYET', 4, 3);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lich_phong_may`
+--
+
+CREATE TABLE `lich_phong_may` (
+  `id` int(11) NOT NULL,
+  `ngay_hoc` date NOT NULL,
+  `tuan_hoc` int(11) DEFAULT NULL,
+  `thu` int(11) DEFAULT NULL,
+  `tiet_bat_dau` int(11) DEFAULT NULL,
+  `tiet_ket_thuc` int(11) DEFAULT NULL,
+  `phong_may_id` int(11) NOT NULL,
+  `lop_hoc_phan_id` int(11) NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL,
+  `ca_hoc_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `lich_phong_may`
+--
+
+INSERT INTO `lich_phong_may` (`id`, `ngay_hoc`, `tuan_hoc`, `thu`, `tiet_bat_dau`, `tiet_ket_thuc`, `phong_may_id`, `lop_hoc_phan_id`, `nguoi_dung_id`, `ca_hoc_id`) VALUES
+(1, '2026-05-28', 1, 5, 1, 5, 1, 1, 4, 1),
+(2, '2026-05-29', 1, 6, 6, 10, 2, 2, 5, 2);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lop_hoc`
+--
+
+CREATE TABLE `lop_hoc` (
+  `id` int(11) NOT NULL,
+  `ma_lop` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `lop_hoc`
+--
+
+INSERT INTO `lop_hoc` (`id`, `ma_lop`) VALUES
+(1, 'CDTH20A'),
+(2, 'CDTH20B');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lop_hoc_phan`
+--
+
+CREATE TABLE `lop_hoc_phan` (
+  `id` int(11) NOT NULL,
+  `ma_lhp` varchar(50) NOT NULL,
+  `mon_hoc_id` int(11) NOT NULL,
+  `lop_hoc_id` int(11) DEFAULT NULL,
+  `giang_vien_id` int(11) NOT NULL,
+  `si_so_toi_da` int(11) DEFAULT 40
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `lop_hoc_phan`
+--
+
+INSERT INTO `lop_hoc_phan` (`id`, `ma_lhp`, `mon_hoc_id`, `lop_hoc_id`, `giang_vien_id`, `si_so_toi_da`) VALUES
+(1, 'LTUDDD_01', 1, 1, 4, 40),
+(2, 'LTUDDD_02', 1, 2, 5, 40);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `may_tinh`
+--
+
+CREATE TABLE `may_tinh` (
+  `id` int(11) NOT NULL,
+  `ma_may` varchar(50) NOT NULL,
+  `ma_qr` varchar(255) NOT NULL,
+  `ip_may` varchar(50) DEFAULT NULL,
+  `he_dieu_hanh` varchar(50) DEFAULT NULL,
+  `trang_thai` enum('TOT','LOI','DANG_SUA') DEFAULT 'TOT',
+  `phong_may_id` int(11) NOT NULL,
+  `cau_hinh_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `mon_hoc`
+--
+
+CREATE TABLE `mon_hoc` (
+  `id` int(11) NOT NULL,
+  `ten_mon` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `mon_hoc`
+--
+
+INSERT INTO `mon_hoc` (`id`, `ten_mon`) VALUES
+(1, 'Lập trình ứng dụng di động'),
+(2, 'Kiểm thử phần mềm');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `nguoi_dung`
+--
+
+CREATE TABLE `nguoi_dung` (
+  `id` int(11) NOT NULL,
+  `tai_khoan` varchar(50) NOT NULL,
+  `mat_khau` varchar(255) NOT NULL,
+  `ho_ten` varchar(100) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `vai_tro_id` int(11) NOT NULL,
+  `lop_hoc_id` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `nguoi_dung`
+--
+
+INSERT INTO `nguoi_dung` (`id`, `tai_khoan`, `mat_khau`, `ho_ten`, `email`, `vai_tro_id`, `lop_hoc_id`) VALUES
+(1, 'admin', '123', 'admin', 'admin@123', 1, NULL),
+(2, 'teacher', '123', 'GV', 'GV@123', 2, NULL),
+(3, 'user', '123', 'Hà Hoàng Phúc', 'user123', 3, 1),
+(4, 'teacher01', '123', 'Nguyễn văn A', 'vana@caothang.edu.vn', 2, NULL),
+(5, 'teacher02', '123', 'Nguyễn Văn B', 'vanb@caothang.edu.vn', 2, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `phieu_bao_tri`
+--
+
+CREATE TABLE `phieu_bao_tri` (
+  `id` int(11) NOT NULL,
+  `chi_tiet_sua` text NOT NULL,
+  `ngay_bao_tri` datetime NOT NULL,
+  `nguoi_sua` varchar(100) DEFAULT NULL,
+  `chi_phi` decimal(10,2) DEFAULT 0.00,
+  `bao_cao_su_co_id` int(11) NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `phieu_chuyen_may`
+--
+
+CREATE TABLE `phieu_chuyen_may` (
+  `id` int(11) NOT NULL,
+  `ma_phieu` varchar(50) NOT NULL,
+  `ngay_yeu_cau` datetime NOT NULL DEFAULT current_timestamp(),
+  `ly_do` text NOT NULL,
+  `trang_thai` enum('CHO_DUYET','DA_DUYET','TU_CHOI') DEFAULT 'CHO_DUYET',
+  `may_tinh_id` int(11) NOT NULL,
+  `phong_cu_id` int(11) NOT NULL,
+  `phong_moi_id` int(11) NOT NULL,
+  `nguoi_dung_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `phieu_muon`
+--
+
+CREATE TABLE `phieu_muon` (
+  `id` int(11) NOT NULL,
+  `so_luong` int(11) NOT NULL DEFAULT 1,
+  `ngay_muon` datetime NOT NULL,
+  `trang_thai` enum('DANG_MUON','DA_TRA','QUA_HAN') DEFAULT 'DANG_MUON',
+  `nguoi_dung_id` int(11) NOT NULL,
+  `thiet_bi_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `phong_may`
+--
+
+CREATE TABLE `phong_may` (
+  `id` int(11) NOT NULL,
+  `ten_phong` varchar(50) NOT NULL,
+  `trang_thai` enum('HOAT_DONG','BAO_TRI','KHOA') DEFAULT 'HOAT_DONG'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `phong_may`
+--
+
+INSERT INTO `phong_may` (`id`, `ten_phong`, `trang_thai`) VALUES
+(1, 'PM01', 'HOAT_DONG'),
+(2, 'PM02', 'HOAT_DONG'),
+(3, 'PM03', 'HOAT_DONG');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `thiet_bi`
+--
+
+CREATE TABLE `thiet_bi` (
+  `id` int(11) NOT NULL,
+  `ten_tb` varchar(100) NOT NULL,
+  `don_vi_tinh` varchar(50) DEFAULT 'Cái',
+  `thong_so_ky_thuat` text DEFAULT NULL,
+  `nam_trang_bi` int(4) DEFAULT NULL,
+  `so_luong_con` int(11) NOT NULL DEFAULT 0,
+  `phong_may_id` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `thiet_bi`
+--
+
+INSERT INTO `thiet_bi` (`id`, `ten_tb`, `don_vi_tinh`, `thong_so_ky_thuat`, `nam_trang_bi`, `so_luong_con`, `phong_may_id`) VALUES
+(1, 'Switch D-Link', 'Cái', '24 port + Switch (D-link) 16 port', NULL, 1, 1),
+(2, 'Máy chiếu', 'Cái', NULL, NULL, 1, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `vai_tro`
+--
+
+CREATE TABLE `vai_tro` (
+  `id` int(11) NOT NULL,
+  `ten_vai_tro` varchar(50) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `vai_tro`
+--
+
+INSERT INTO `vai_tro` (`id`, `ten_vai_tro`) VALUES
+(1, 'Admin'),
+(2, 'Teacher'),
+(3, 'User');
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `bao_cao_su_co`
+--
+ALTER TABLE `bao_cao_su_co`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `may_tinh_id` (`may_tinh_id`),
+  ADD KEY `nguoi_dung_id` (`nguoi_dung_id`);
+
+--
+-- Indexes for table `cau_hinh`
+--
+ALTER TABLE `cau_hinh`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `ca_hoc`
+--
+ALTER TABLE `ca_hoc`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `dang_ky_mon_hoc`
+--
+ALTER TABLE `dang_ky_mon_hoc`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `chk_sv_lhp` (`nguoi_dung_id`,`lop_hoc_phan_id`),
+  ADD KEY `fk_dk_lhp` (`lop_hoc_phan_id`);
+
+--
+-- Indexes for table `diem_danh`
+--
+ALTER TABLE `diem_danh`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `chk_diem_danh` (`nguoi_dung_id`,`lich_phong_may_id`),
+  ADD KEY `diem_danh_ibfk_2` (`lich_phong_may_id`),
+  ADD KEY `diem_danh_ibfk_3` (`may_tinh_id`);
+
+--
+-- Indexes for table `dk_phong_may`
+--
+ALTER TABLE `dk_phong_may`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `nguoi_dung_id` (`nguoi_dung_id`),
+  ADD KEY `phong_may_id` (`phong_may_id`);
+
+--
+-- Indexes for table `lich_phong_may`
+--
+ALTER TABLE `lich_phong_may`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `chk_trung_lich` (`phong_may_id`,`ngay_hoc`,`ca_hoc_id`),
+  ADD KEY `fk_lich_lhp` (`lop_hoc_phan_id`),
+  ADD KEY `lich_phong_may_ibfk_3` (`nguoi_dung_id`),
+  ADD KEY `lich_phong_may_ibfk_5` (`ca_hoc_id`);
+
+--
+-- Indexes for table `lop_hoc`
+--
+ALTER TABLE `lop_hoc`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ma_lop` (`ma_lop`);
+
+--
+-- Indexes for table `lop_hoc_phan`
+--
+ALTER TABLE `lop_hoc_phan`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ma_lhp` (`ma_lhp`),
+  ADD KEY `fk_lhp_monhoc` (`mon_hoc_id`),
+  ADD KEY `fk_lhp_giangvien` (`giang_vien_id`),
+  ADD KEY `fk_lhp_lophoc` (`lop_hoc_id`);
+
+--
+-- Indexes for table `may_tinh`
+--
+ALTER TABLE `may_tinh`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ma_may` (`ma_may`),
+  ADD UNIQUE KEY `ma_qr` (`ma_qr`),
+  ADD KEY `phong_may_id` (`phong_may_id`),
+  ADD KEY `cau_hinh_id` (`cau_hinh_id`);
+
+--
+-- Indexes for table `mon_hoc`
+--
+ALTER TABLE `mon_hoc`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `nguoi_dung`
+--
+ALTER TABLE `nguoi_dung`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `tai_khoan` (`tai_khoan`),
+  ADD UNIQUE KEY `email` (`email`),
+  ADD KEY `vai_tro_id` (`vai_tro_id`),
+  ADD KEY `lop_hoc_id` (`lop_hoc_id`);
+
+--
+-- Indexes for table `phieu_bao_tri`
+--
+ALTER TABLE `phieu_bao_tri`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `bao_cao_su_co_id` (`bao_cao_su_co_id`),
+  ADD KEY `nguoi_dung_id` (`nguoi_dung_id`);
+
+--
+-- Indexes for table `phieu_chuyen_may`
+--
+ALTER TABLE `phieu_chuyen_may`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ma_phieu` (`ma_phieu`),
+  ADD KEY `fk_pcm_may_tinh` (`may_tinh_id`),
+  ADD KEY `fk_pcm_phong_cu` (`phong_cu_id`),
+  ADD KEY `fk_pcm_phong_moi` (`phong_moi_id`),
+  ADD KEY `fk_pcm_nguoi_dung` (`nguoi_dung_id`);
+
+--
+-- Indexes for table `phieu_muon`
+--
+ALTER TABLE `phieu_muon`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `nguoi_dung_id` (`nguoi_dung_id`),
+  ADD KEY `thiet_bi_id` (`thiet_bi_id`);
+
+--
+-- Indexes for table `phong_may`
+--
+ALTER TABLE `phong_may`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ten_phong` (`ten_phong`);
+
+--
+-- Indexes for table `thiet_bi`
+--
+ALTER TABLE `thiet_bi`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `phong_may_id` (`phong_may_id`);
+
+--
+-- Indexes for table `vai_tro`
+--
+ALTER TABLE `vai_tro`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ten_vai_tro` (`ten_vai_tro`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `bao_cao_su_co`
+--
+ALTER TABLE `bao_cao_su_co`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `cau_hinh`
+--
+ALTER TABLE `cau_hinh`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `ca_hoc`
+--
+ALTER TABLE `ca_hoc`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `dang_ky_mon_hoc`
+--
+ALTER TABLE `dang_ky_mon_hoc`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `diem_danh`
+--
+ALTER TABLE `diem_danh`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `dk_phong_may`
+--
+ALTER TABLE `dk_phong_may`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `lich_phong_may`
+--
+ALTER TABLE `lich_phong_may`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `lop_hoc`
+--
+ALTER TABLE `lop_hoc`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `lop_hoc_phan`
+--
+ALTER TABLE `lop_hoc_phan`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `may_tinh`
+--
+ALTER TABLE `may_tinh`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `mon_hoc`
+--
+ALTER TABLE `mon_hoc`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `nguoi_dung`
+--
+ALTER TABLE `nguoi_dung`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `phieu_bao_tri`
+--
+ALTER TABLE `phieu_bao_tri`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `phieu_chuyen_may`
+--
+ALTER TABLE `phieu_chuyen_may`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `phieu_muon`
+--
+ALTER TABLE `phieu_muon`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `phong_may`
+--
+ALTER TABLE `phong_may`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `thiet_bi`
+--
+ALTER TABLE `thiet_bi`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `vai_tro`
+--
+ALTER TABLE `vai_tro`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `bao_cao_su_co`
+--
+ALTER TABLE `bao_cao_su_co`
+  ADD CONSTRAINT `bao_cao_su_co_ibfk_1` FOREIGN KEY (`may_tinh_id`) REFERENCES `may_tinh` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `bao_cao_su_co_ibfk_2` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `dang_ky_mon_hoc`
+--
+ALTER TABLE `dang_ky_mon_hoc`
+  ADD CONSTRAINT `fk_dk_lhp` FOREIGN KEY (`lop_hoc_phan_id`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_dk_sv` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `diem_danh`
+--
+ALTER TABLE `diem_danh`
+  ADD CONSTRAINT `diem_danh_ibfk_1` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `diem_danh_ibfk_2` FOREIGN KEY (`lich_phong_may_id`) REFERENCES `lich_phong_may` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `diem_danh_ibfk_3` FOREIGN KEY (`may_tinh_id`) REFERENCES `may_tinh` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `dk_phong_may`
+--
+ALTER TABLE `dk_phong_may`
+  ADD CONSTRAINT `dk_phong_may_ibfk_1` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `dk_phong_may_ibfk_2` FOREIGN KEY (`phong_may_id`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `lich_phong_may`
+--
+ALTER TABLE `lich_phong_may`
+  ADD CONSTRAINT `fk_lich_lhp` FOREIGN KEY (`lop_hoc_phan_id`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `lich_phong_may_ibfk_1` FOREIGN KEY (`phong_may_id`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `lich_phong_may_ibfk_3` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `lich_phong_may_ibfk_5` FOREIGN KEY (`ca_hoc_id`) REFERENCES `ca_hoc` (`id`);
+
+--
+-- Constraints for table `lop_hoc_phan`
+--
+ALTER TABLE `lop_hoc_phan`
+  ADD CONSTRAINT `fk_lhp_giangvien` FOREIGN KEY (`giang_vien_id`) REFERENCES `nguoi_dung` (`id`),
+  ADD CONSTRAINT `fk_lhp_lophoc` FOREIGN KEY (`lop_hoc_id`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_lhp_monhoc` FOREIGN KEY (`mon_hoc_id`) REFERENCES `mon_hoc` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `may_tinh`
+--
+ALTER TABLE `may_tinh`
+  ADD CONSTRAINT `may_tinh_ibfk_1` FOREIGN KEY (`phong_may_id`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `may_tinh_ibfk_2` FOREIGN KEY (`cau_hinh_id`) REFERENCES `cau_hinh` (`id`);
+
+--
+-- Constraints for table `nguoi_dung`
+--
+ALTER TABLE `nguoi_dung`
+  ADD CONSTRAINT `nguoi_dung_ibfk_1` FOREIGN KEY (`vai_tro_id`) REFERENCES `vai_tro` (`id`),
+  ADD CONSTRAINT `nguoi_dung_ibfk_2` FOREIGN KEY (`lop_hoc_id`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `phieu_bao_tri`
+--
+ALTER TABLE `phieu_bao_tri`
+  ADD CONSTRAINT `phieu_bao_tri_ibfk_1` FOREIGN KEY (`bao_cao_su_co_id`) REFERENCES `bao_cao_su_co` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `phieu_bao_tri_ibfk_2` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`);
+
+--
+-- Constraints for table `phieu_chuyen_may`
+--
+ALTER TABLE `phieu_chuyen_may`
+  ADD CONSTRAINT `fk_pcm_may_tinh` FOREIGN KEY (`may_tinh_id`) REFERENCES `may_tinh` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pcm_nguoi_dung` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pcm_phong_cu` FOREIGN KEY (`phong_cu_id`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pcm_phong_moi` FOREIGN KEY (`phong_moi_id`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `phieu_muon`
+--
+ALTER TABLE `phieu_muon`
+  ADD CONSTRAINT `phieu_muon_ibfk_1` FOREIGN KEY (`nguoi_dung_id`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `phieu_muon_ibfk_2` FOREIGN KEY (`thiet_bi_id`) REFERENCES `thiet_bi` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `thiet_bi`
+--
+ALTER TABLE `thiet_bi`
+  ADD CONSTRAINT `thiet_bi_ibfk_1` FOREIGN KEY (`phong_may_id`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
