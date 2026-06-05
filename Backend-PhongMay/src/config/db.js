@@ -5,7 +5,7 @@ const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306;
 const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const DB_NAME = process.env.DB_NAME || 'pmcnttckc';
+const DB_NAME = process.env.DB_NAME || 'it_lab_room';
 
 // Sử dụng connection pool để tối ưu hiệu năng và tự động tái sử dụng kết nối
 const pool = mysql.createPool({

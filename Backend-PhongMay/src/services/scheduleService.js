@@ -1,53 +1,121 @@
 const db = require('../config/db');
 
-const getSchedule = (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
-  return new Promise((resolve, reject) => {
+const getSchedule = async (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
+  const conn = db.promise();
+  try {
     let sql = `
-      SELECT 
-        lpm.id, lpm.ngay_hoc, lpm.thu, lpm.tiet_bat_dau, lpm.tiet_ket_thuc, lpm.tuan_hoc,
-        pm.ten_phong, pm.id as phong_may_id,
-        lh.ma_lop, 
-        mh.ten_mon, 
+      SELECT
+        lpm.id,
+        lpm.ngay_hoc_cu_the AS ngay_hoc,
+        lpm.thu_trong_tuan AS thu,
+        lpm.so_tiet_bat_dau AS tiet_bat_dau,
+        lpm.so_tiet_ket_thuc AS tiet_ket_thuc,
+        lpm.ma_cai_dat_thoi_gian AS cai_dat_id,
+        pm.ten_phong, pm.id AS phong_may_id,
+        lh.ma_lop,
+        mh.ten_mon,
         ch.gio_bat_dau, ch.gio_ket_thuc,
-        nd.ho_ten as ten_giang_vien
-      FROM lich_phong_may lpm
-      JOIN phong_may pm ON lpm.phong_may_id = pm.id
-      JOIN lop_hoc lh ON lpm.lop_hoc_id = lh.id
-      JOIN mon_hoc mh ON lpm.mon_hoc_id = mh.id
-      JOIN ca_hoc ch ON lpm.ca_hoc_id = ch.id
-      JOIN nguoi_dung nd ON lpm.nguoi_dung_id = nd.id
-      WHERE lpm.tuan_hoc = ?
+        nd.ho_ten AS ten_giang_vien
+      FROM lich_su_dung_phong_may lpm
+      JOIN phong_may pm ON lpm.ma_phong = pm.id
+      LEFT JOIN lop_hoc lh ON lpm.ma_lop = lh.id
+      LEFT JOIN lop_hoc_phan lhp ON lpm.ma_lop_hoc_phan = lhp.id
+      LEFT JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+      LEFT JOIN ca_hoc ch ON ch.ten_ca = lpm.ca_hoc
+      LEFT JOIN giang_vien gv ON lpm.ma_giang_vien = gv.id
+      LEFT JOIN nguoi_dung nd ON gv.ma_nguoi_dung = nd.id
+      WHERE 1=1
     `;
-    let queryParams = [tuan_hoc];
 
-    if (lop_hoc_id) {
-      sql += ` AND lpm.lop_hoc_id = ?`;
-      queryParams.push(lop_hoc_id);
-    } else if (nguoi_dung_id) {
-      sql += ` AND lpm.nguoi_dung_id = ?`;
-      queryParams.push(nguoi_dung_id);
+    const params = [];
+
+    if (tuan_hoc) {
+      if (/^\d+$/.test(String(tuan_hoc))) {
+        sql += ` AND lpm.ma_cai_dat_thoi_gian = ?`;
+        params.push(tuan_hoc);
+      } else if (!isNaN(Date.parse(tuan_hoc))) {
+        sql += ` AND lpm.ngay_hoc_cu_the = ?`;
+        params.push(tuan_hoc);
+      }
     }
 
-    sql += ` ORDER BY lpm.ngay_hoc ASC, lpm.tiet_bat_dau ASC`;
+    if (lop_hoc_id) {
+      sql += ` AND lpm.ma_lop = ?`;
+      params.push(lop_hoc_id);
+    }
 
-    db.query(sql, queryParams, (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
+    if (nguoi_dung_id) {
+      const [gvRows] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
+      if (gvRows.length > 0) {
+        sql += ` AND lpm.ma_giang_vien = ?`;
+        params.push(gvRows[0].id);
+      } else {
+        sql += ` AND lpm.ma_giang_vien = ?`;
+        params.push(nguoi_dung_id);
+      }
+    }
+
+    sql += ` ORDER BY lpm.ngay_hoc_cu_the ASC, lpm.so_tiet_bat_dau ASC`;
+
+    const [rows] = await conn.query(sql, params);
+    return rows;
+  } catch (err) {
+    throw err;
+  }
 };
 
-const bookRoom = (data) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      INSERT INTO dk_phong_may (ngay_yeu_cau, nguoi_dung_id, phong_may_id, trang_thai) 
-      VALUES (?, ?, ?, 'CHO_DUYET')
-    `;
-    db.query(sql, [data.ngay_yeu_cau, data.nguoi_dung_id, data.phong_may_id], (err, results) => {
-      if (err) return reject(err);
-      resolve(results);
-    });
-  });
+const bookRoom = async (data) => {
+  const conn = db.promise();
+  try {
+    const [gvRows] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [data.nguoi_dung_id]);
+    let ma_giang_vien = data.nguoi_dung_id;
+    if (gvRows.length > 0) ma_giang_vien = gvRows[0].id;
+
+    const sql = `INSERT INTO dat_phong_may (ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`;
+    const [result] = await conn.query(sql, [ma_giang_vien, data.phong_may_id, data.ngay_yeu_cau, data.ma_ca || null, data.muc_dich || null, data.trang_thai_duyet || 'pending']);
+    const insertId = result.insertId || result.insert_id || null;
+    if (insertId) {
+      const [rows] = await conn.query('SELECT * FROM dat_phong_may WHERE id = ?', [insertId]);
+      return rows[0] || { id: insertId };
+    }
+    return null;
+  } catch (err) {
+    throw err;
+  }
 };
 
-module.exports = { getSchedule, bookRoom };
+const updateBookingStatus = async (id, status, reviewerId) => {
+  const conn = db.promise();
+  const sql = 'UPDATE dat_phong_may SET trang_thai_duyet = ?, ma_nguoi_duyet = ?, updated_at = NOW() WHERE id = ?';
+  const [result] = await conn.query(sql, [status, reviewerId || null, id]);
+  return result.affectedRows || 0;
+};
+
+const getBookings = async (opts = {}) => {
+  const conn = db.promise();
+  const { trang_thai_duyet, ma_phong, ma_giang_vien, page, limit } = opts;
+  let sql = `SELECT dp.id, dp.ma_giang_vien, dp.ma_phong, dp.ngay_dat, dp.ma_ca, dp.muc_dich, dp.trang_thai_duyet, dp.ma_nguoi_duyet, dp.created_at, pm.ten_phong, nd.ho_ten as nguoi_dat
+             FROM dat_phong_may dp
+             LEFT JOIN phong_may pm ON dp.ma_phong = pm.id
+             LEFT JOIN giang_vien gv ON dp.ma_giang_vien = gv.id
+             LEFT JOIN nguoi_dung nd ON gv.ma_nguoi_dung = nd.id
+             WHERE 1=1`;
+  const params = [];
+  if (trang_thai_duyet) { sql += ' AND dp.trang_thai_duyet = ?'; params.push(trang_thai_duyet); }
+  if (ma_phong) { sql += ' AND dp.ma_phong = ?'; params.push(ma_phong); }
+  if (ma_giang_vien) { sql += ' AND dp.ma_giang_vien = ?'; params.push(ma_giang_vien); }
+
+  sql += ' ORDER BY dp.ngay_dat DESC, dp.created_at DESC';
+  if (limit && Number(limit) > 0) {
+    const l = Number(limit);
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const offset = (p - 1) * l;
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(l, offset);
+  }
+
+  const [rows] = await conn.query(sql, params);
+  return rows;
+};
+
+module.exports = { getSchedule, bookRoom, updateBookingStatus, getBookings };
