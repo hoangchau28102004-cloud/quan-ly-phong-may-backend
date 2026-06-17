@@ -1,17 +1,22 @@
 const db = require('../config/db');
 
 const CategoryService = {
-  // Lớp học
+  // 1. Lớp học (Giữ nguyên)
   getLopHoc: async () => {
     const [rows] = await db.promise().query('SELECT * FROM lop_hoc');
     return rows;
   },
-  addLopHoc: async (ma_lop) => {
-    const [result] = await db.promise().query('INSERT INTO lop_hoc (ma_lop) VALUES (?)', [ma_lop]);
+  addLopHoc: async (ma_lop, nien_khoa, chuyen_nganh) => {
+    const sql = 'INSERT INTO lop_hoc (ma_lop, nien_khoa, chuyen_nganh) VALUES (?, ?, ?)';
+    const [result] = await db.promise().query(sql, [ma_lop, nien_khoa, chuyen_nganh]);
     return result.insertId;
   },
-  updateLopHoc: async (id, ma_lop) => {
-    const [result] = await db.promise().query('UPDATE lop_hoc SET ma_lop = ? WHERE id = ?', [ma_lop, id]);
+  updateLopHoc: async (id, data) => {
+    const { ma_lop, nien_khoa, chuyen_nganh } = data;
+    const [result] = await db.promise().query(
+      'UPDATE lop_hoc SET ma_lop = ?, nien_khoa = ?, chuyen_nganh = ? WHERE id = ?', 
+      [ma_lop, nien_khoa, chuyen_nganh, id]
+    );
     return result.affectedRows;
   },
   deleteLopHoc: async (id) => {
@@ -19,19 +24,18 @@ const CategoryService = {
     return result.affectedRows;
   },
 
-  // Thiết bị
+  // 2. Thiết bị (Giữ nguyên)
   getThietBi: async () => {
     const [rows] = await db.promise().query('SELECT * FROM thiet_bi');
     return rows;
   },
-  addThietBi: async (ten_tb, so_luong_tong) => {
-    // DB mới: cột `ten_thiet_bi`, `so_luong`
+  addThietBi: async (ten_tb, so_luong) => {
     const sql = 'INSERT INTO thiet_bi (ten_thiet_bi, so_luong) VALUES (?, ?)';
-    const [result] = await db.promise().query(sql, [ten_tb, so_luong_tong]);
+    const [result] = await db.promise().query(sql, [ten_tb, so_luong]);
     return result.insertId;
   },
 
-  // Môn & Ca
+  // 3. Môn học (Giữ nguyên)
   getMonHoc: async () => {
     const [rows] = await db.promise().query('SELECT * FROM mon_hoc');
     return rows;
@@ -40,60 +44,34 @@ const CategoryService = {
     const [result] = await db.promise().query('INSERT INTO mon_hoc (ten_mon) VALUES (?)', [ten_mon]);
     return result.insertId;
   },
-  updateMonHoc: async (id, ten_mon) => {
-    const [result] = await db.promise().query('UPDATE mon_hoc SET ten_mon = ? WHERE id = ?', [ten_mon, id]);
-    return result.affectedRows;
-  },
-  deleteMonHoc: async (id) => {
-    const [result] = await db.promise().query('DELETE FROM mon_hoc WHERE id = ?', [id]);
-    return result.affectedRows;
-  },
-  getCaHoc: async () => {
-    const [rows] = await db.promise().query('SELECT * FROM ca_hoc');
-    return rows;
-  }
-,
-  addCaHoc: async (ten_ca, gio_bat_dau, gio_ket_thuc) => {
-    const sql = 'INSERT INTO ca_hoc (ten_ca, gio_bat_dau, gio_ket_thuc, created_at) VALUES (?, ?, ?, NOW())';
-    const [result] = await db.promise().query(sql, [ten_ca, gio_bat_dau, gio_ket_thuc]);
-    return result.insertId;
-  },
-  updateCaHoc: async (id, ten_ca, gio_bat_dau, gio_ket_thuc) => {
-    const sql = 'UPDATE ca_hoc SET ten_ca = ?, gio_bat_dau = ?, gio_ket_thuc = ?, updated_at = NOW() WHERE id = ?';
-    const [result] = await db.promise().query(sql, [ten_ca, gio_bat_dau, gio_ket_thuc, id]);
-    return result.affectedRows;
-  },
-  deleteCaHoc: async (id) => {
-    const [result] = await db.promise().query('DELETE FROM ca_hoc WHERE id = ?', [id]);
-    return result.affectedRows;
-  },
-  // Cau truc cai dat thoi gian
-  listCauTruc: async () => {
-    const [rows] = await db.promise().query('SELECT * FROM cau_truc_cai_dat_thoi_gian ORDER BY id DESC');
+
+  // 4. QUẢN LÝ NĂM HỌC (THAY THẾ CA HỌC/CẤU TRÚC CŨ)
+  getNamHoc: async () => {
+    const [rows] = await db.promise().query('SELECT * FROM nam_hoc ORDER BY id DESC');
     return rows;
   },
-  createCauTruc: async (data) => {
-    const { nam_hoc, hoc_ky, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan } = data;
-    const sql = `INSERT INTO cau_truc_cai_dat_thoi_gian (nam_hoc, hoc_ky, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan, created_at)
-                 VALUES (?, ?, ?, ?, ?, NOW())`;
-    const [result] = await db.promise().query(sql, [nam_hoc, hoc_ky, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan]);
+  addNamHoc: async (nam_hoc, hoc_ky) => {
+    const sql = 'INSERT INTO nam_hoc (nam_hoc, hoc_ky, created_at) VALUES (?, ?, NOW())';
+    const [result] = await db.promise().query(sql, [nam_hoc, hoc_ky]);
     return result.insertId;
   },
-  updateCauTruc: async (id, data) => {
-    const sets = [];
-    const params = [];
-    ['nam_hoc','hoc_ky','so_tuan','ngay_bat_dau_tuan','ngay_ket_thuc_tuan'].forEach(k => {
-      if (data[k] !== undefined) { sets.push(`${k} = ?`); params.push(data[k]); }
-    });
-    if (sets.length === 0) return 0;
-    params.push(id);
-    const sql = `UPDATE cau_truc_cai_dat_thoi_gian SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`;
-    const [result] = await db.promise().query(sql, params);
-    return result.affectedRows || 0;
+
+  // 5. QUẢN LÝ TUẦN HỌC (THAY THẾ CẤU TRÚC CŨ)
+  getTuan: async (ma_nam_hoc) => {
+    const sql = 'SELECT * FROM tuan WHERE ma_nam_hoc = ? ORDER BY so_tuan ASC';
+    const [rows] = await db.promise().query(sql, [ma_nam_hoc]);
+    return rows;
   },
-  deleteCauTruc: async (id) => {
-    const [result] = await db.promise().query('DELETE FROM cau_truc_cai_dat_thoi_gian WHERE id = ?', [id]);
-    return result.affectedRows || 0;
+  addTuan: async (data) => {
+    const { ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan } = data;
+    const sql = `INSERT INTO tuan (ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan, created_at)
+                 VALUES (?, ?, ?, ?, NOW())`;
+    const [result] = await db.promise().query(sql, [ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan]);
+    return result.insertId;
+  },
+  deleteTuan: async (id) => {
+    const [result] = await db.promise().query('DELETE FROM tuan WHERE id = ?', [id]);
+    return result.affectedRows;
   }
 };
 

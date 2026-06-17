@@ -21,4 +21,14 @@ router.get('/may-tinh/:id', assetsController.getComputer);
 router.put('/may-tinh/:id', assetsController.updateComputer);
 router.delete('/may-tinh/:id', assetsController.deleteComputer);
 
+// ==========================================
+// IMPORT RECEIPT (PHIẾU NHẬP MÁY)
+// ==========================================
+
+// 1. Lấy danh sách phiếu nhập
+router.get('/phieu-nhap-may', assetsController.listImportReceipts);
+
+// 2. Tạo phiếu nhập mới
+router.post('/phieu-nhap-may', assetsController.createImportReceipt);
+
 module.exports = router;

@@ -1,6 +1,6 @@
 const db = require('../config/db');
 
-const getSchedule = async (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
+const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
   const conn = db.promise();
   try {
     let sql = `
@@ -10,18 +10,17 @@ const getSchedule = async (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
         lpm.thu_trong_tuan AS thu,
         lpm.so_tiet_bat_dau AS tiet_bat_dau,
         lpm.so_tiet_ket_thuc AS tiet_ket_thuc,
-        lpm.ma_cai_dat_thoi_gian AS cai_dat_id,
+        lpm.ma_tuan AS tuan_id,
+        lpm.ma_ca,
         pm.ten_phong, pm.id AS phong_may_id,
         lh.ma_lop,
         mh.ten_mon,
-        ch.gio_bat_dau, ch.gio_ket_thuc,
         nd.ho_ten AS ten_giang_vien
       FROM lich_su_dung_phong_may lpm
       JOIN phong_may pm ON lpm.ma_phong = pm.id
       LEFT JOIN lop_hoc lh ON lpm.ma_lop = lh.id
       LEFT JOIN lop_hoc_phan lhp ON lpm.ma_lop_hoc_phan = lhp.id
       LEFT JOIN mon_hoc mh ON lhp.ma_mon = mh.id
-      LEFT JOIN ca_hoc ch ON ch.ten_ca = lpm.ca_hoc
       LEFT JOIN giang_vien gv ON lpm.ma_giang_vien = gv.id
       LEFT JOIN nguoi_dung nd ON gv.ma_nguoi_dung = nd.id
       WHERE 1=1
@@ -29,14 +28,10 @@ const getSchedule = async (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
 
     const params = [];
 
-    if (tuan_hoc) {
-      if (/^\d+$/.test(String(tuan_hoc))) {
-        sql += ` AND lpm.ma_cai_dat_thoi_gian = ?`;
-        params.push(tuan_hoc);
-      } else if (!isNaN(Date.parse(tuan_hoc))) {
-        sql += ` AND lpm.ngay_hoc_cu_the = ?`;
-        params.push(tuan_hoc);
-      }
+    // Lọc theo tuần (tuan_id là bigint của bảng tuan)
+    if (tuan_id) {
+      sql += ` AND lpm.ma_tuan = ?`;
+      params.push(tuan_id);
     }
 
     if (lop_hoc_id) {
@@ -50,6 +45,7 @@ const getSchedule = async (tuan_hoc, lop_hoc_id, nguoi_dung_id) => {
         sql += ` AND lpm.ma_giang_vien = ?`;
         params.push(gvRows[0].id);
       } else {
+        // Fallback nếu không phải giảng viên
         sql += ` AND lpm.ma_giang_vien = ?`;
         params.push(nguoi_dung_id);
       }
@@ -71,9 +67,21 @@ const bookRoom = async (data) => {
     let ma_giang_vien = data.nguoi_dung_id;
     if (gvRows.length > 0) ma_giang_vien = gvRows[0].id;
 
-    const sql = `INSERT INTO dat_phong_may (ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`;
-    const [result] = await conn.query(sql, [ma_giang_vien, data.phong_may_id, data.ngay_yeu_cau, data.ma_ca || null, data.muc_dich || null, data.trang_thai_duyet || 'pending']);
-    const insertId = result.insertId || result.insert_id || null;
+    // Lưu ý: đảm bảo dữ liệu truyền vào khớp với các cột: 
+    // ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet
+    const sql = `INSERT INTO dat_phong_may (ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet, created_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, NOW())`;
+    
+    const [result] = await conn.query(sql, [
+      ma_giang_vien, 
+      data.phong_may_id, 
+      data.ngay_yeu_cau, 
+      data.ma_ca || null, 
+      data.muc_dich || null, 
+      data.trang_thai_duyet || 'pending'
+    ]);
+    
+    const insertId = result.insertId || null;
     if (insertId) {
       const [rows] = await conn.query('SELECT * FROM dat_phong_may WHERE id = ?', [insertId]);
       return rows[0] || { id: insertId };
@@ -86,6 +94,8 @@ const bookRoom = async (data) => {
 
 const updateBookingStatus = async (id, status, reviewerId) => {
   const conn = db.promise();
+  // Bảng dat_phong_may có cột ma_nguoi_duyet không? 
+  // Nếu schema cũ có ma_nguoi_duyet thì dùng, nếu không phải đổi tên cột cho khớp
   const sql = 'UPDATE dat_phong_may SET trang_thai_duyet = ?, ma_nguoi_duyet = ?, updated_at = NOW() WHERE id = ?';
   const [result] = await conn.query(sql, [status, reviewerId || null, id]);
   return result.affectedRows || 0;

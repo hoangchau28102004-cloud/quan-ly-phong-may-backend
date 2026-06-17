@@ -122,8 +122,36 @@ const deleteComputer = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// ==========================================
+// IMPORT RECEIPT (PHIẾU NHẬP MÁY)
+// ==========================================
+
+// 1. Hàm lấy danh sách phiếu nhập để hiển thị lên bảng
+const listImportReceipts = async (req, res, next) => {
+  try {
+    const rows = await assetsService.listImportReceipts();
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 2. Hàm tạo phiếu nhập mới
+const createImportReceipt = async (req, res, next) => {
+  try {
+    // req.body chứa toàn bộ JSON cấu hình gửi từ Flutter
+    const result = await assetsService.createImportReceipt(req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
   listConfigs, createConfig, updateConfig, deleteConfig,
-  listComputers, getComputer, createComputer, updateComputer, deleteComputer
+  listComputers, getComputer, createComputer, updateComputer, deleteComputer,
+  // Thêm cả 2 hàm của phiếu nhập máy vào export
+  listImportReceipts, 
+  createImportReceipt 
 };

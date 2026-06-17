@@ -1,16 +1,10 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.3
--- https://www.phpmyadmin.net/
---
--- Máy chủ: mysql:3306
--- Thời gian đã tạo: Th6 04, 2026 lúc 05:52 AM
--- Phiên bản máy phục vụ: 8.0.46
--- Phiên bản PHP: 8.3.30
+-- Tích hợp các thay đổi cấu trúc Database
+-- Thời gian cập nhật: Th6 10, 2026
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
-
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -30,7 +24,6 @@ SET time_zone = "+00:00";
 CREATE TABLE `bao_cao_su_co` (
   `id` bigint UNSIGNED NOT NULL,
   `ma_nguoi_bao_cao` bigint UNSIGNED NOT NULL,
-  `ma_phong` bigint UNSIGNED DEFAULT NULL,
   `ma_may_tinh` bigint UNSIGNED DEFAULT NULL,
   `ma_thiet_bi` bigint UNSIGNED DEFAULT NULL,
   `loai_su_co` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -64,16 +57,13 @@ CREATE TABLE `cau_hinh_may_tinh` (
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `cau_truc_cai_dat_thoi_gian`
+-- Cấu trúc bảng cho bảng `nam_hoc` (Thay thế cấu trúc cài đặt thời gian)
 --
 
-CREATE TABLE `cau_truc_cai_dat_thoi_gian` (
+CREATE TABLE `nam_hoc` (
   `id` bigint UNSIGNED NOT NULL,
   `nam_hoc` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `hoc_ky` tinyint UNSIGNED NOT NULL,
-  `so_tuan` smallint UNSIGNED NOT NULL,
-  `ngay_bat_dau_tuan` date NOT NULL,
-  `ngay_ket_thuc_tuan` date NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -81,25 +71,18 @@ CREATE TABLE `cau_truc_cai_dat_thoi_gian` (
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `ca_hoc`
+-- Cấu trúc bảng cho bảng `tuan` (Thay thế cấu trúc cài đặt thời gian)
 --
 
-CREATE TABLE `ca_hoc` (
+CREATE TABLE `tuan` (
   `id` bigint UNSIGNED NOT NULL,
-  `ten_ca` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `gio_bat_dau` time NOT NULL,
-  `gio_ket_thuc` time NOT NULL,
+  `ma_nam_hoc` bigint UNSIGNED NOT NULL,
+  `so_tuan` smallint UNSIGNED NOT NULL,
+  `ngay_bat_dau_tuan` date NOT NULL,
+  `ngay_ket_thuc_tuan` date NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Đang đổ dữ liệu cho bảng `ca_hoc`
---
-
-INSERT INTO `ca_hoc` (`id`, `ten_ca`, `gio_bat_dau`, `gio_ket_thuc`, `created_at`, `updated_at`) VALUES
-(1, 'Ca sáng', '06:30:00', '11:25:00', '2026-05-28 10:01:20', '2026-05-28 10:01:20'),
-(2, 'Ca chiều', '12:30:00', '17:30:00', '2026-05-28 10:01:20', '2026-05-28 10:01:20');
 
 -- --------------------------------------------------------
 
@@ -195,11 +178,15 @@ CREATE TABLE `dat_phong_may` (
   `ma_giang_vien` bigint UNSIGNED NOT NULL,
   `ma_phong` bigint UNSIGNED NOT NULL,
   `ma_mon` bigint UNSIGNED DEFAULT NULL,
+  `ma_tuan` bigint UNSIGNED DEFAULT NULL,
   `ngay_dat` date NOT NULL,
-  `ma_ca` bigint UNSIGNED NOT NULL,
+  `ma_ca` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tiet_bat_dau` tinyint UNSIGNED NOT NULL DEFAULT '1',
+  `tiet_ket_thuc` tinyint UNSIGNED NOT NULL DEFAULT '1',
+  `so_tiet_bat_dau` tinyint UNSIGNED DEFAULT NULL,
+  `so_tiet_ket_thuc` tinyint UNSIGNED DEFAULT NULL,
   `muc_dich` text COLLATE utf8mb4_unicode_ci,
   `trang_thai_duyet` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `ma_nguoi_duyet` bigint UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -214,6 +201,8 @@ CREATE TABLE `diem_danh` (
   `id` bigint UNSIGNED NOT NULL,
   `ma_lich_su_dung` bigint UNSIGNED NOT NULL,
   `ma_sinh_vien` bigint UNSIGNED NOT NULL,
+  `ma_ca` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ma_lop_hoc_phan` bigint UNSIGNED DEFAULT NULL,
   `ma_may_tinh` bigint UNSIGNED DEFAULT NULL,
   `thoi_gian_check_in` timestamp NULL DEFAULT NULL,
   `trang_thai` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'present',
@@ -253,10 +242,6 @@ CREATE TABLE `giang_vien` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Đang đổ dữ liệu cho bảng `giang_vien`
---
-
 INSERT INTO `giang_vien` (`id`, `ma_nguoi_dung`, `ma_giang_vien`, `bo_mon`, `created_at`, `updated_at`, `deleted_at`) VALUES
 (1, 2, 'GVTEST001', 'Công nghệ thông tin', '2026-05-28 10:01:20', '2026-05-28 10:01:20', NULL);
 
@@ -291,10 +276,10 @@ CREATE TABLE `lich_su_dung_phong_may` (
   `ma_lop` bigint UNSIGNED DEFAULT NULL,
   `ma_lop_hoc_phan` bigint UNSIGNED DEFAULT NULL,
   `ma_giang_vien` bigint UNSIGNED DEFAULT NULL,
-  `ma_cai_dat_thoi_gian` bigint UNSIGNED NOT NULL,
+  `ma_tuan` bigint UNSIGNED NOT NULL,
+  `ma_ca` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ngay_hoc_cu_the` date NOT NULL,
   `thu_trong_tuan` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `ca_hoc` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `so_tiet_bat_dau` tinyint UNSIGNED NOT NULL,
   `so_tiet_ket_thuc` tinyint UNSIGNED NOT NULL,
   `loai_lich` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ChinhThuc',
@@ -320,10 +305,6 @@ CREATE TABLE `lop_hoc` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Đang đổ dữ liệu cho bảng `lop_hoc`
---
-
 INSERT INTO `lop_hoc` (`id`, `ma_lop`, `nien_khoa`, `chuyen_nganh`, `ma_giang_vien`, `created_at`, `updated_at`, `deleted_at`) VALUES
 (1, 'CTK_TEST_01', '2022-2026', 'Công nghệ thông tin', 1, '2026-05-28 10:01:20', '2026-05-28 10:01:20', NULL);
 
@@ -336,10 +317,8 @@ INSERT INTO `lop_hoc` (`id`, `ma_lop`, `nien_khoa`, `chuyen_nganh`, `ma_giang_vi
 CREATE TABLE `lop_hoc_phan` (
   `id` bigint UNSIGNED NOT NULL,
   `ma_lop_hoc_phan` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `ma_lop` bigint UNSIGNED DEFAULT NULL,
   `ma_mon` bigint UNSIGNED NOT NULL,
-  `ma_cai_dat_thoi_gian` bigint UNSIGNED NOT NULL,
-  `ma_giang_vien` bigint UNSIGNED DEFAULT NULL,
+  `ma_nam_hoc` bigint UNSIGNED NOT NULL,
   `ma_phong` bigint UNSIGNED DEFAULT NULL,
   `si_so_toi_da` int UNSIGNED NOT NULL DEFAULT '0',
   `trang_thai` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
@@ -360,6 +339,7 @@ CREATE TABLE `may_tinh` (
   `ma_phong` bigint UNSIGNED NOT NULL,
   `ma_cau_hinh` bigint UNSIGNED DEFAULT NULL,
   `ma_may` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ten_may` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ma_qr` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `dia_chi_ip` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `dia_chi_mac` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -369,31 +349,6 @@ CREATE TABLE `may_tinh` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Cấu trúc bảng cho bảng `migrations`
---
-
-CREATE TABLE `migrations` (
-  `id` int UNSIGNED NOT NULL,
-  `migration` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `batch` int NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Đang đổ dữ liệu cho bảng `migrations`
---
-
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
-(1, '2026_05_28_000000_tao_lai_co_so_du_lieu_it_lab_room', 1),
-(2, '2026_05_30_000001_cap_nhat_bang_phieu_muon_theo_giang_vien_phong_ban', 2),
-(3, '2026_05_30_000002_dong_bo_do_dai_va_cot_meta_phieu_muon', 3),
-(4, '2026_06_02_000001_xoa_ma_phong_ban_cha_khoi_bang_phong_ban', 4),
-(5, '2026_06_02_000002_xoa_email_xac_thuc_luc_khoi_bang_nguoi_dung', 5),
-(6, '2026_06_02_000003_xoa_dia_chi_va_token_ghi_nho_khoi_bang_nguoi_dung', 6),
-(7, '2026_06_04_000001_cho_phep_chia_lich_phong_theo_tiet', 7);
 
 -- --------------------------------------------------------
 
@@ -433,10 +388,6 @@ CREATE TABLE `nguoi_dung` (
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Đang đổ dữ liệu cho bảng `nguoi_dung`
---
-
 INSERT INTO `nguoi_dung` (`id`, `ma_vai_tro`, `ho_ten`, `email`, `mat_khau`, `so_dien_thoai`, `gioi_tinh`, `ngay_sinh`, `trang_thai`, `created_at`, `updated_at`, `deleted_at`) VALUES
 (1, 1, 'Admin IT Lab', 'admin@itlab.test', '$2y$12$lnXGf3FDGb0pL0RyI5CaHO9043nimUd839GlCFeK5BfOFJ0wlOquW', '0900000001', 'Nam', '1990-01-01', 1, '2026-05-28 10:01:20', '2026-05-28 10:01:20', NULL),
 (2, 3, 'Giảng viên IT Lab', 'teacher@itlab.test', '$2y$12$lnXGf3FDGb0pL0RyI5CaHO9043nimUd839GlCFeK5BfOFJ0wlOquW', '0900000002', 'Nữ', '1988-05-10', 1, '2026-05-28 10:01:20', '2026-05-28 10:01:20', NULL),
@@ -466,44 +417,15 @@ CREATE TABLE `nhat_ky_sua_chua` (
 -- --------------------------------------------------------
 
 --
--- Cấu trúc bảng cho bảng `personal_access_tokens`
---
-
-CREATE TABLE `personal_access_tokens` (
-  `id` bigint UNSIGNED NOT NULL,
-  `tokenable_type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tokenable_id` bigint UNSIGNED NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `token` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `abilities` text COLLATE utf8mb4_unicode_ci,
-  `last_used_at` timestamp NULL DEFAULT NULL,
-  `expires_at` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Đang đổ dữ liệu cho bảng `personal_access_tokens`
---
-
-INSERT INTO `personal_access_tokens` (`id`, `tokenable_type`, `tokenable_id`, `name`, `token`, `abilities`, `last_used_at`, `expires_at`, `created_at`, `updated_at`) VALUES
-(4, 'App\\Models\\User', 2, 'teacher_login_token', '93b71bb378b703eaef22fa39935b5ffac98f5517090aa85869b25919c65f621b', '[\"teacher\"]', NULL, NULL, '2026-06-01 09:57:19', '2026-06-01 09:57:19'),
-(6, 'App\\Models\\User', 1, 'admin_login_token', '2589dd5e7b84ccbe7883571b1b04de9325339f6f27899557c8bcee0fe15c81bf', '[\"admin\"]', NULL, NULL, '2026-06-01 11:55:20', '2026-06-01 11:55:20'),
-(7, 'App\\Models\\User', 3, 'student_login_token', '1af8442becac3c4109219c03756895e4045e2f50ab7559c17219f66b46bc1da9', '[\"student\"]', NULL, NULL, '2026-06-03 15:04:49', '2026-06-03 15:04:49');
-
--- --------------------------------------------------------
-
---
 -- Cấu trúc bảng cho bảng `phan_cong_giang_vien`
 --
 
 CREATE TABLE `phan_cong_giang_vien` (
   `id` bigint UNSIGNED NOT NULL,
   `ma_giang_vien` bigint UNSIGNED NOT NULL,
-  `ma_lop` bigint UNSIGNED NOT NULL,
-  `ma_lop_hoc_phan` bigint UNSIGNED DEFAULT NULL,
-  `ma_mon` bigint UNSIGNED NOT NULL,
-  `ma_cai_dat_thoi_gian` bigint UNSIGNED NOT NULL,
+  `ma_lop_hoc_phan` bigint UNSIGNED NOT NULL,
+  `trang_thai` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `ghi_chu` text COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -577,7 +499,6 @@ CREATE TABLE `phieu_tra_may_ngoai` (
   `ma_phieu_tra` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ma_phieu_muon` bigint UNSIGNED DEFAULT NULL,
   `ma_giang_vien` bigint UNSIGNED DEFAULT NULL,
-  `ma_nguoi_nhan` bigint UNSIGNED DEFAULT NULL,
   `thoi_gian_tra` timestamp NULL DEFAULT NULL,
   `trang_thai` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `ghi_chu` text COLLATE utf8mb4_unicode_ci,
@@ -613,6 +534,7 @@ CREATE TABLE `phong_may` (
   `id` bigint UNSIGNED NOT NULL,
   `ma_phong` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `ten_phong` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `vi_tri` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `suc_chua` int UNSIGNED NOT NULL DEFAULT '0',
   `trang_thai` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `mo_ta` text COLLATE utf8mb4_unicode_ci,
@@ -637,10 +559,6 @@ CREATE TABLE `sinh_vien` (
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Đang đổ dữ liệu cho bảng `sinh_vien`
---
 
 INSERT INTO `sinh_vien` (`id`, `ma_nguoi_dung`, `ma_lop`, `ma_sinh_vien`, `nien_khoa`, `created_at`, `updated_at`, `deleted_at`) VALUES
 (1, 3, 1, 'SVTEST001', '2022-2026', '2026-05-28 10:01:20', '2026-05-28 10:01:20', NULL),
@@ -679,135 +597,87 @@ CREATE TABLE `vai_tro` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Đang đổ dữ liệu cho bảng `vai_tro`
---
-
 INSERT INTO `vai_tro` (`id`, `ten_vai_tro`, `mo_ta`, `created_at`, `updated_at`) VALUES
 (1, 'admin', 'Quản trị viên hệ thống', '2026-05-28 10:01:20', '2026-05-28 10:01:20'),
 (2, 'student', 'Sinh viên', '2026-05-28 10:01:20', '2026-05-28 10:01:20'),
 (3, 'teacher', 'Giảng viên', '2026-05-28 10:01:20', '2026-05-28 10:01:20');
 
 --
--- Chỉ mục cho các bảng đã đổ
+-- CHỈ MỤC CHO CÁC BẢNG (INDEXES)
 --
 
---
--- Chỉ mục cho bảng `bao_cao_su_co`
---
 ALTER TABLE `bao_cao_su_co`
   ADD PRIMARY KEY (`id`),
   ADD KEY `bao_cao_su_co_ma_nguoi_bao_cao_foreign` (`ma_nguoi_bao_cao`),
-  ADD KEY `bao_cao_su_co_ma_phong_foreign` (`ma_phong`),
   ADD KEY `bao_cao_su_co_ma_may_tinh_foreign` (`ma_may_tinh`),
   ADD KEY `bao_cao_su_co_ma_thiet_bi_foreign` (`ma_thiet_bi`),
   ADD KEY `bao_cao_su_co_loai_su_co_index` (`loai_su_co`),
   ADD KEY `bao_cao_su_co_muc_do_index` (`muc_do`),
   ADD KEY `bao_cao_su_co_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `cau_hinh_may_tinh`
---
 ALTER TABLE `cau_hinh_may_tinh`
   ADD PRIMARY KEY (`id`);
 
---
--- Chỉ mục cho bảng `cau_truc_cai_dat_thoi_gian`
---
-ALTER TABLE `cau_truc_cai_dat_thoi_gian`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `cau_truc_thoi_gian_nam_hoc_hoc_ky_index` (`nam_hoc`,`hoc_ky`);
+ALTER TABLE `nam_hoc`
+  ADD PRIMARY KEY (`id`);
 
---
--- Chỉ mục cho bảng `ca_hoc`
---
-ALTER TABLE `ca_hoc`
+ALTER TABLE `tuan`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `ca_hoc_ten_ca_unique` (`ten_ca`);
+  ADD KEY `tuan_ma_nam_hoc_foreign` (`ma_nam_hoc`);
 
---
--- Chỉ mục cho bảng `chi_tiet_lop_hoc_phan`
---
 ALTER TABLE `chi_tiet_lop_hoc_phan`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `chi_tiet_lhp_sinh_vien_unique` (`ma_lop_hoc_phan`,`ma_sinh_vien`),
   ADD KEY `chi_tiet_lop_hoc_phan_ma_sinh_vien_foreign` (`ma_sinh_vien`),
   ADD KEY `chi_tiet_lop_hoc_phan_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `chi_tiet_muon_may_ngoai`
---
 ALTER TABLE `chi_tiet_muon_may_ngoai`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `chi_tiet_muon_may_unique` (`ma_phieu_muon`,`ma_may_tinh`),
   ADD KEY `chi_tiet_muon_may_ngoai_ma_may_tinh_foreign` (`ma_may_tinh`);
 
---
--- Chỉ mục cho bảng `chi_tiet_muon_thiet_bi_ngoai`
---
 ALTER TABLE `chi_tiet_muon_thiet_bi_ngoai`
   ADD PRIMARY KEY (`id`),
   ADD KEY `chi_tiet_muon_thiet_bi_ngoai_ma_phieu_muon_foreign` (`ma_phieu_muon`),
   ADD KEY `chi_tiet_muon_thiet_bi_ngoai_ma_thiet_bi_foreign` (`ma_thiet_bi`);
 
---
--- Chỉ mục cho bảng `chi_tiet_tra_may_ngoai`
---
 ALTER TABLE `chi_tiet_tra_may_ngoai`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `chi_tiet_tra_may_unique` (`ma_phieu_tra`,`ma_may_tinh`),
   ADD KEY `chi_tiet_tra_may_ngoai_ma_may_tinh_foreign` (`ma_may_tinh`);
 
---
--- Chỉ mục cho bảng `chi_tiet_tra_thiet_bi_ngoai`
---
 ALTER TABLE `chi_tiet_tra_thiet_bi_ngoai`
   ADD PRIMARY KEY (`id`),
   ADD KEY `chi_tiet_tra_thiet_bi_ngoai_ma_phieu_tra_foreign` (`ma_phieu_tra`),
   ADD KEY `chi_tiet_tra_thiet_bi_ngoai_ma_thiet_bi_foreign` (`ma_thiet_bi`);
 
---
--- Chỉ mục cho bảng `dat_phong_may`
---
 ALTER TABLE `dat_phong_may`
   ADD PRIMARY KEY (`id`),
   ADD KEY `dat_phong_may_ma_giang_vien_foreign` (`ma_giang_vien`),
   ADD KEY `dat_phong_may_ma_mon_foreign` (`ma_mon`),
-  ADD KEY `dat_phong_may_ma_ca_foreign` (`ma_ca`),
-  ADD KEY `dat_phong_may_ma_nguoi_duyet_foreign` (`ma_nguoi_duyet`),
-  ADD KEY `dat_phong_phong_ngay_ca_index` (`ma_phong`,`ngay_dat`,`ma_ca`),
   ADD KEY `dat_phong_may_ngay_dat_index` (`ngay_dat`),
-  ADD KEY `dat_phong_may_trang_thai_duyet_index` (`trang_thai_duyet`);
+  ADD KEY `dat_phong_may_trang_thai_duyet_index` (`trang_thai_duyet`),
+  ADD KEY `dat_phong_may_ma_tuan_foreign` (`ma_tuan`),
+  ADD KEY `dat_phong_phong_ngay_ca_tiet_index` (`ma_phong`,`ngay_dat`,`ma_ca`,`so_tiet_bat_dau`,`so_tiet_ket_thuc`);
 
---
--- Chỉ mục cho bảng `diem_danh`
---
 ALTER TABLE `diem_danh`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `diem_danh_lich_su_sinh_vien_unique` (`ma_lich_su_dung`,`ma_sinh_vien`),
   ADD KEY `diem_danh_ma_sinh_vien_foreign` (`ma_sinh_vien`),
+  ADD KEY `diem_danh_ma_lop_hoc_phan_foreign` (`ma_lop_hoc_phan`),
   ADD KEY `diem_danh_ma_may_tinh_foreign` (`ma_may_tinh`),
   ADD KEY `diem_danh_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `ghi_nhan_may_giao_vien`
---
 ALTER TABLE `ghi_nhan_may_giao_vien`
   ADD PRIMARY KEY (`id`),
   ADD KEY `ghi_nhan_may_giao_vien_ma_lich_su_dung_foreign` (`ma_lich_su_dung`),
   ADD KEY `ghi_nhan_may_giao_vien_ma_may_tinh_giao_vien_foreign` (`ma_may_tinh_giao_vien`);
 
---
--- Chỉ mục cho bảng `giang_vien`
---
 ALTER TABLE `giang_vien`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `giang_vien_ma_nguoi_dung_unique` (`ma_nguoi_dung`),
   ADD UNIQUE KEY `giang_vien_ma_giang_vien_unique` (`ma_giang_vien`);
 
---
--- Chỉ mục cho bảng `lich_su_dieu_chuyen_may`
---
 ALTER TABLE `lich_su_dieu_chuyen_may`
   ADD PRIMARY KEY (`id`),
   ADD KEY `lich_su_dieu_chuyen_may_ma_may_tinh_foreign` (`ma_may_tinh`),
@@ -816,22 +686,17 @@ ALTER TABLE `lich_su_dieu_chuyen_may`
   ADD KEY `lich_su_dieu_chuyen_may_ma_nguoi_dieu_chuyen_foreign` (`ma_nguoi_dieu_chuyen`),
   ADD KEY `lich_su_dieu_chuyen_may_thoi_gian_dieu_chuyen_index` (`thoi_gian_dieu_chuyen`);
 
---
--- Chỉ mục cho bảng `lich_su_dung_phong_may`
---
 ALTER TABLE `lich_su_dung_phong_may`
   ADD PRIMARY KEY (`id`),
   ADD KEY `lich_su_dung_phong_may_ma_lop_foreign` (`ma_lop`),
   ADD KEY `lich_su_dung_phong_may_ma_lop_hoc_phan_foreign` (`ma_lop_hoc_phan`),
   ADD KEY `lich_su_dung_phong_may_ma_giang_vien_foreign` (`ma_giang_vien`),
-  ADD KEY `lich_su_dung_phong_may_ma_cai_dat_thoi_gian_foreign` (`ma_cai_dat_thoi_gian`),
+  ADD KEY `lich_su_dung_phong_may_ma_tuan_foreign` (`ma_tuan`),
   ADD KEY `lich_su_dung_phong_may_ngay_hoc_cu_the_index` (`ngay_hoc_cu_the`),
   ADD KEY `lich_su_dung_phong_may_loai_lich_index` (`loai_lich`),
-  ADD KEY `ls_dung_phong_ngay_ca_tiet_index` (`ma_phong`,`ngay_hoc_cu_the`,`ca_hoc`,`so_tiet_bat_dau`,`so_tiet_ket_thuc`);
+  ADD KEY `ls_dung_phong_ma_phong_index` (`ma_phong`),
+  ADD KEY `ls_dung_phong_ngay_ca_tiet_index` (`ma_phong`,`ngay_hoc_cu_the`,`ma_ca`,`so_tiet_bat_dau`,`so_tiet_ket_thuc`);
 
---
--- Chỉ mục cho bảng `lop_hoc`
---
 ALTER TABLE `lop_hoc`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `lop_hoc_ma_lop_unique` (`ma_lop`),
@@ -839,46 +704,27 @@ ALTER TABLE `lop_hoc`
   ADD KEY `lop_hoc_nien_khoa_index` (`nien_khoa`),
   ADD KEY `lop_hoc_chuyen_nganh_index` (`chuyen_nganh`);
 
---
--- Chỉ mục cho bảng `lop_hoc_phan`
---
 ALTER TABLE `lop_hoc_phan`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `lop_hoc_phan_ma_lop_hoc_phan_unique` (`ma_lop_hoc_phan`),
-  ADD KEY `lop_hoc_phan_ma_lop_foreign` (`ma_lop`),
   ADD KEY `lop_hoc_phan_ma_mon_foreign` (`ma_mon`),
-  ADD KEY `lop_hoc_phan_ma_cai_dat_thoi_gian_foreign` (`ma_cai_dat_thoi_gian`),
-  ADD KEY `lop_hoc_phan_ma_giang_vien_foreign` (`ma_giang_vien`),
+  ADD KEY `lop_hoc_phan_ma_nam_hoc_foreign` (`ma_nam_hoc`),
   ADD KEY `lop_hoc_phan_ma_phong_foreign` (`ma_phong`),
   ADD KEY `lop_hoc_phan_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `may_tinh`
---
 ALTER TABLE `may_tinh`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `may_tinh_ma_may_unique` (`ma_may`),
+  ADD UNIQUE KEY `may_tinh_ma_phong_ten_may_unique` (`ma_phong`,`ten_may`),
   ADD UNIQUE KEY `may_tinh_ma_qr_unique` (`ma_qr`),
-  ADD KEY `may_tinh_ma_phong_foreign` (`ma_phong`),
   ADD KEY `may_tinh_ma_cau_hinh_foreign` (`ma_cau_hinh`),
-  ADD KEY `may_tinh_trang_thai_index` (`trang_thai`);
+  ADD KEY `may_tinh_trang_thai_index` (`trang_thai`),
+  ADD KEY `may_tinh_ma_phong_index` (`ma_phong`);
 
---
--- Chỉ mục cho bảng `migrations`
---
-ALTER TABLE `migrations`
-  ADD PRIMARY KEY (`id`);
-
---
--- Chỉ mục cho bảng `mon_hoc`
---
 ALTER TABLE `mon_hoc`
   ADD PRIMARY KEY (`id`),
   ADD KEY `mon_hoc_loai_mon_index` (`loai_mon`);
 
---
--- Chỉ mục cho bảng `nguoi_dung`
---
 ALTER TABLE `nguoi_dung`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `nguoi_dung_email_unique` (`email`),
@@ -886,9 +732,6 @@ ALTER TABLE `nguoi_dung`
   ADD KEY `nguoi_dung_so_dien_thoai_index` (`so_dien_thoai`),
   ADD KEY `nguoi_dung_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `nhat_ky_sua_chua`
---
 ALTER TABLE `nhat_ky_sua_chua`
   ADD PRIMARY KEY (`id`),
   ADD KEY `nhat_ky_sua_chua_ma_phieu_bao_tri_foreign` (`ma_phieu_bao_tri`),
@@ -897,29 +740,13 @@ ALTER TABLE `nhat_ky_sua_chua`
   ADD KEY `nhat_ky_sua_chua_ma_nguoi_sua_foreign` (`ma_nguoi_sua`),
   ADD KEY `nhat_ky_sua_chua_thoi_gian_sua_index` (`thoi_gian_sua`);
 
---
--- Chỉ mục cho bảng `personal_access_tokens`
---
-ALTER TABLE `personal_access_tokens`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `personal_access_tokens_token_unique` (`token`),
-  ADD KEY `personal_access_tokens_tokenable_type_tokenable_id_index` (`tokenable_type`,`tokenable_id`);
-
---
--- Chỉ mục cho bảng `phan_cong_giang_vien`
---
 ALTER TABLE `phan_cong_giang_vien`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `phan_cong_giang_vien_unique` (`ma_giang_vien`,`ma_lop`,`ma_mon`,`ma_cai_dat_thoi_gian`),
   ADD UNIQUE KEY `phan_cong_giang_vien_lhp_unique` (`ma_giang_vien`,`ma_lop_hoc_phan`),
-  ADD KEY `phan_cong_giang_vien_ma_lop_foreign` (`ma_lop`),
-  ADD KEY `phan_cong_giang_vien_ma_mon_foreign` (`ma_mon`),
-  ADD KEY `phan_cong_giang_vien_ma_cai_dat_thoi_gian_foreign` (`ma_cai_dat_thoi_gian`),
+  ADD KEY `phan_cong_giang_vien_trang_thai_index` (`trang_thai`),
+  ADD KEY `phan_cong_giang_vien_ma_giang_vien_index` (`ma_giang_vien`),
   ADD KEY `phan_cong_giang_vien_ma_lop_hoc_phan_foreign` (`ma_lop_hoc_phan`);
 
---
--- Chỉ mục cho bảng `phieu_bao_tri`
---
 ALTER TABLE `phieu_bao_tri`
   ADD PRIMARY KEY (`id`),
   ADD KEY `phieu_bao_tri_ma_bao_cao_su_co_foreign` (`ma_bao_cao_su_co`),
@@ -927,9 +754,6 @@ ALTER TABLE `phieu_bao_tri`
   ADD KEY `phieu_bao_tri_loai_bao_tri_index` (`loai_bao_tri`),
   ADD KEY `phieu_bao_tri_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `phieu_muon`
---
 ALTER TABLE `phieu_muon`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phieu_muon_ma_phieu_muon_unique` (`ma_phieu_muon`),
@@ -937,9 +761,6 @@ ALTER TABLE `phieu_muon`
   ADD KEY `phieu_muon_ma_phong_ban_foreign` (`ma_phong_ban`),
   ADD KEY `phieu_muon_trang_thai_phieu_index` (`trang_thai_phieu`);
 
---
--- Chỉ mục cho bảng `phieu_nhap_may`
---
 ALTER TABLE `phieu_nhap_may`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phieu_nhap_may_ma_phieu_nhap_unique` (`ma_phieu_nhap`),
@@ -947,37 +768,24 @@ ALTER TABLE `phieu_nhap_may`
   ADD KEY `phieu_nhap_may_ngay_nhap_index` (`ngay_nhap`),
   ADD KEY `phieu_nhap_may_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `phieu_tra_may_ngoai`
---
 ALTER TABLE `phieu_tra_may_ngoai`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phieu_tra_may_ngoai_ma_phieu_tra_unique` (`ma_phieu_tra`),
   ADD KEY `phieu_tra_may_ngoai_ma_phieu_muon_foreign` (`ma_phieu_muon`),
-  ADD KEY `phieu_tra_may_ngoai_ma_nguoi_nhan_foreign` (`ma_nguoi_nhan`),
   ADD KEY `phieu_tra_may_ngoai_thoi_gian_tra_index` (`thoi_gian_tra`),
   ADD KEY `phieu_tra_may_ngoai_trang_thai_index` (`trang_thai`),
   ADD KEY `phieu_tra_may_ngoai_ma_giang_vien_foreign` (`ma_giang_vien`);
 
---
--- Chỉ mục cho bảng `phong_ban`
---
 ALTER TABLE `phong_ban`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phong_ban_ma_phong_ban_unique` (`ma_phong_ban`),
   ADD KEY `phong_ban_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `phong_may`
---
 ALTER TABLE `phong_may`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `phong_may_ma_phong_unique` (`ma_phong`),
   ADD KEY `phong_may_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `sinh_vien`
---
 ALTER TABLE `sinh_vien`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `sinh_vien_ma_nguoi_dung_unique` (`ma_nguoi_dung`),
@@ -985,409 +793,163 @@ ALTER TABLE `sinh_vien`
   ADD KEY `sinh_vien_ma_lop_foreign` (`ma_lop`),
   ADD KEY `sinh_vien_nien_khoa_index` (`nien_khoa`);
 
---
--- Chỉ mục cho bảng `thiet_bi`
---
 ALTER TABLE `thiet_bi`
   ADD PRIMARY KEY (`id`),
   ADD KEY `thiet_bi_ma_phong_foreign` (`ma_phong`),
   ADD KEY `thiet_bi_trang_thai_index` (`trang_thai`);
 
---
--- Chỉ mục cho bảng `vai_tro`
---
 ALTER TABLE `vai_tro`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `vai_tro_ten_vai_tro_unique` (`ten_vai_tro`);
 
 --
--- AUTO_INCREMENT cho các bảng đã đổ
+-- AUTO_INCREMENT (Tự động tăng giá trị)
 --
 
---
--- AUTO_INCREMENT cho bảng `bao_cao_su_co`
---
-ALTER TABLE `bao_cao_su_co`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `bao_cao_su_co` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `cau_hinh_may_tinh` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `nam_hoc` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `tuan` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `chi_tiet_lop_hoc_phan` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `chi_tiet_muon_may_ngoai` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `chi_tiet_muon_thiet_bi_ngoai` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `chi_tiet_tra_may_ngoai` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `chi_tiet_tra_thiet_bi_ngoai` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `dat_phong_may` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `diem_danh` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `ghi_nhan_may_giao_vien` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `giang_vien` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `lich_su_dieu_chuyen_may` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `lich_su_dung_phong_may` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `lop_hoc` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `lop_hoc_phan` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `may_tinh` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `mon_hoc` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `nguoi_dung` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+ALTER TABLE `nhat_ky_sua_chua` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phan_cong_giang_vien` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phieu_bao_tri` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phieu_muon` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phieu_nhap_may` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phieu_tra_may_ngoai` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phong_ban` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `phong_may` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `sinh_vien` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+ALTER TABLE `thiet_bi` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `vai_tro` MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
--- AUTO_INCREMENT cho bảng `cau_hinh_may_tinh`
---
-ALTER TABLE `cau_hinh_may_tinh`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `cau_truc_cai_dat_thoi_gian`
---
-ALTER TABLE `cau_truc_cai_dat_thoi_gian`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `ca_hoc`
---
-ALTER TABLE `ca_hoc`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
-
---
--- AUTO_INCREMENT cho bảng `chi_tiet_lop_hoc_phan`
---
-ALTER TABLE `chi_tiet_lop_hoc_phan`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `chi_tiet_muon_may_ngoai`
---
-ALTER TABLE `chi_tiet_muon_may_ngoai`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `chi_tiet_muon_thiet_bi_ngoai`
---
-ALTER TABLE `chi_tiet_muon_thiet_bi_ngoai`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `chi_tiet_tra_may_ngoai`
---
-ALTER TABLE `chi_tiet_tra_may_ngoai`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `chi_tiet_tra_thiet_bi_ngoai`
---
-ALTER TABLE `chi_tiet_tra_thiet_bi_ngoai`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `dat_phong_may`
---
-ALTER TABLE `dat_phong_may`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `diem_danh`
---
-ALTER TABLE `diem_danh`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `ghi_nhan_may_giao_vien`
---
-ALTER TABLE `ghi_nhan_may_giao_vien`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `giang_vien`
---
-ALTER TABLE `giang_vien`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT cho bảng `lich_su_dieu_chuyen_may`
---
-ALTER TABLE `lich_su_dieu_chuyen_may`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `lich_su_dung_phong_may`
---
-ALTER TABLE `lich_su_dung_phong_may`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `lop_hoc`
---
-ALTER TABLE `lop_hoc`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT cho bảng `lop_hoc_phan`
---
-ALTER TABLE `lop_hoc_phan`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `may_tinh`
---
-ALTER TABLE `may_tinh`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `migrations`
---
-ALTER TABLE `migrations`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
-
---
--- AUTO_INCREMENT cho bảng `mon_hoc`
---
-ALTER TABLE `mon_hoc`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `nguoi_dung`
---
-ALTER TABLE `nguoi_dung`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-
---
--- AUTO_INCREMENT cho bảng `nhat_ky_sua_chua`
---
-ALTER TABLE `nhat_ky_sua_chua`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `personal_access_tokens`
---
-ALTER TABLE `personal_access_tokens`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
-
---
--- AUTO_INCREMENT cho bảng `phan_cong_giang_vien`
---
-ALTER TABLE `phan_cong_giang_vien`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phieu_bao_tri`
---
-ALTER TABLE `phieu_bao_tri`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phieu_muon`
---
-ALTER TABLE `phieu_muon`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phieu_nhap_may`
---
-ALTER TABLE `phieu_nhap_may`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phieu_tra_may_ngoai`
---
-ALTER TABLE `phieu_tra_may_ngoai`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phong_ban`
---
-ALTER TABLE `phong_ban`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `phong_may`
---
-ALTER TABLE `phong_may`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `sinh_vien`
---
-ALTER TABLE `sinh_vien`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
-
---
--- AUTO_INCREMENT cho bảng `thiet_bi`
---
-ALTER TABLE `thiet_bi`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `vai_tro`
---
-ALTER TABLE `vai_tro`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- Ràng buộc đối với các bảng kết xuất
+-- THIẾT LẬP RÀNG BUỘC (FOREIGN KEYS VÀ CONSTRAINTS)
 --
 
---
--- Ràng buộc cho bảng `bao_cao_su_co`
---
+ALTER TABLE `tuan`
+  ADD CONSTRAINT `tuan_ma_nam_hoc_foreign` FOREIGN KEY (`ma_nam_hoc`) REFERENCES `nam_hoc` (`id`) ON DELETE CASCADE;
+
 ALTER TABLE `bao_cao_su_co`
   ADD CONSTRAINT `bao_cao_su_co_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `bao_cao_su_co_ma_nguoi_bao_cao_foreign` FOREIGN KEY (`ma_nguoi_bao_cao`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `bao_cao_su_co_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `bao_cao_su_co_ma_thiet_bi_foreign` FOREIGN KEY (`ma_thiet_bi`) REFERENCES `thiet_bi` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `chi_tiet_lop_hoc_phan`
---
 ALTER TABLE `chi_tiet_lop_hoc_phan`
   ADD CONSTRAINT `chi_tiet_lop_hoc_phan_ma_lop_hoc_phan_foreign` FOREIGN KEY (`ma_lop_hoc_phan`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `chi_tiet_lop_hoc_phan_ma_sinh_vien_foreign` FOREIGN KEY (`ma_sinh_vien`) REFERENCES `sinh_vien` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `chi_tiet_muon_may_ngoai`
---
 ALTER TABLE `chi_tiet_muon_may_ngoai`
   ADD CONSTRAINT `chi_tiet_muon_may_ngoai_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `chi_tiet_muon_may_ngoai_ma_phieu_muon_foreign` FOREIGN KEY (`ma_phieu_muon`) REFERENCES `phieu_muon` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `chi_tiet_muon_thiet_bi_ngoai`
---
 ALTER TABLE `chi_tiet_muon_thiet_bi_ngoai`
   ADD CONSTRAINT `chi_tiet_muon_thiet_bi_ngoai_ma_phieu_muon_foreign` FOREIGN KEY (`ma_phieu_muon`) REFERENCES `phieu_muon` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `chi_tiet_muon_thiet_bi_ngoai_ma_thiet_bi_foreign` FOREIGN KEY (`ma_thiet_bi`) REFERENCES `thiet_bi` (`id`) ON DELETE RESTRICT;
 
---
--- Ràng buộc cho bảng `chi_tiet_tra_may_ngoai`
---
 ALTER TABLE `chi_tiet_tra_may_ngoai`
   ADD CONSTRAINT `chi_tiet_tra_may_ngoai_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `chi_tiet_tra_may_ngoai_ma_phieu_tra_foreign` FOREIGN KEY (`ma_phieu_tra`) REFERENCES `phieu_tra_may_ngoai` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `chi_tiet_tra_thiet_bi_ngoai`
---
 ALTER TABLE `chi_tiet_tra_thiet_bi_ngoai`
   ADD CONSTRAINT `chi_tiet_tra_thiet_bi_ngoai_ma_phieu_tra_foreign` FOREIGN KEY (`ma_phieu_tra`) REFERENCES `phieu_tra_may_ngoai` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `chi_tiet_tra_thiet_bi_ngoai_ma_thiet_bi_foreign` FOREIGN KEY (`ma_thiet_bi`) REFERENCES `thiet_bi` (`id`) ON DELETE RESTRICT;
 
---
--- Ràng buộc cho bảng `dat_phong_may`
---
 ALTER TABLE `dat_phong_may`
-  ADD CONSTRAINT `dat_phong_may_ma_ca_foreign` FOREIGN KEY (`ma_ca`) REFERENCES `ca_hoc` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `dat_phong_may_ma_tuan_foreign` FOREIGN KEY (`ma_tuan`) REFERENCES `tuan` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `dat_phong_may_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `dat_phong_may_ma_mon_foreign` FOREIGN KEY (`ma_mon`) REFERENCES `mon_hoc` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `dat_phong_may_ma_nguoi_duyet_foreign` FOREIGN KEY (`ma_nguoi_duyet`) REFERENCES `nguoi_dung` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `dat_phong_may_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE RESTRICT;
+  ADD CONSTRAINT `dat_phong_may_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `chk_dat_phong_tiet_hop_le` CHECK ((`tiet_bat_dau` > 0) AND (`tiet_ket_thuc` >= `tiet_bat_dau`));
 
---
--- Ràng buộc cho bảng `diem_danh`
---
 ALTER TABLE `diem_danh`
+  ADD CONSTRAINT `diem_danh_ma_lop_hoc_phan_foreign` FOREIGN KEY (`ma_lop_hoc_phan`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `diem_danh_ma_lich_su_dung_foreign` FOREIGN KEY (`ma_lich_su_dung`) REFERENCES `lich_su_dung_phong_may` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `diem_danh_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `diem_danh_ma_sinh_vien_foreign` FOREIGN KEY (`ma_sinh_vien`) REFERENCES `sinh_vien` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `ghi_nhan_may_giao_vien`
---
 ALTER TABLE `ghi_nhan_may_giao_vien`
   ADD CONSTRAINT `ghi_nhan_may_giao_vien_ma_lich_su_dung_foreign` FOREIGN KEY (`ma_lich_su_dung`) REFERENCES `lich_su_dung_phong_may` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `ghi_nhan_may_giao_vien_ma_may_tinh_giao_vien_foreign` FOREIGN KEY (`ma_may_tinh_giao_vien`) REFERENCES `may_tinh` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `giang_vien`
---
 ALTER TABLE `giang_vien`
   ADD CONSTRAINT `giang_vien_ma_nguoi_dung_foreign` FOREIGN KEY (`ma_nguoi_dung`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `lich_su_dieu_chuyen_may`
---
 ALTER TABLE `lich_su_dieu_chuyen_may`
   ADD CONSTRAINT `lich_su_dieu_chuyen_may_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `lich_su_dieu_chuyen_may_ma_nguoi_dieu_chuyen_foreign` FOREIGN KEY (`ma_nguoi_dieu_chuyen`) REFERENCES `nguoi_dung` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `lich_su_dieu_chuyen_may_ma_phong_cu_foreign` FOREIGN KEY (`ma_phong_cu`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `lich_su_dieu_chuyen_may_ma_phong_moi_foreign` FOREIGN KEY (`ma_phong_moi`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `lich_su_dung_phong_may`
---
 ALTER TABLE `lich_su_dung_phong_may`
-  ADD CONSTRAINT `lich_su_dung_phong_may_ma_cai_dat_thoi_gian_foreign` FOREIGN KEY (`ma_cai_dat_thoi_gian`) REFERENCES `cau_truc_cai_dat_thoi_gian` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `lich_su_dung_phong_may_ma_tuan_foreign` FOREIGN KEY (`ma_tuan`) REFERENCES `tuan` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `lich_su_dung_phong_may_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `lich_su_dung_phong_may_ma_lop_foreign` FOREIGN KEY (`ma_lop`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `lich_su_dung_phong_may_ma_lop_hoc_phan_foreign` FOREIGN KEY (`ma_lop_hoc_phan`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `lich_su_dung_phong_may_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `lop_hoc`
---
 ALTER TABLE `lop_hoc`
   ADD CONSTRAINT `lop_hoc_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `lop_hoc_phan`
---
 ALTER TABLE `lop_hoc_phan`
-  ADD CONSTRAINT `lop_hoc_phan_ma_cai_dat_thoi_gian_foreign` FOREIGN KEY (`ma_cai_dat_thoi_gian`) REFERENCES `cau_truc_cai_dat_thoi_gian` (`id`) ON DELETE RESTRICT,
-  ADD CONSTRAINT `lop_hoc_phan_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `lop_hoc_phan_ma_lop_foreign` FOREIGN KEY (`ma_lop`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `lop_hoc_phan_ma_nam_hoc_foreign` FOREIGN KEY (`ma_nam_hoc`) REFERENCES `nam_hoc` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `lop_hoc_phan_ma_mon_foreign` FOREIGN KEY (`ma_mon`) REFERENCES `mon_hoc` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `lop_hoc_phan_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `may_tinh`
---
 ALTER TABLE `may_tinh`
   ADD CONSTRAINT `may_tinh_ma_cau_hinh_foreign` FOREIGN KEY (`ma_cau_hinh`) REFERENCES `cau_hinh_may_tinh` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `may_tinh_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE RESTRICT;
 
---
--- Ràng buộc cho bảng `nguoi_dung`
---
 ALTER TABLE `nguoi_dung`
   ADD CONSTRAINT `nguoi_dung_ma_vai_tro_foreign` FOREIGN KEY (`ma_vai_tro`) REFERENCES `vai_tro` (`id`) ON DELETE RESTRICT;
 
---
--- Ràng buộc cho bảng `nhat_ky_sua_chua`
---
 ALTER TABLE `nhat_ky_sua_chua`
   ADD CONSTRAINT `nhat_ky_sua_chua_ma_may_tinh_foreign` FOREIGN KEY (`ma_may_tinh`) REFERENCES `may_tinh` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `nhat_ky_sua_chua_ma_nguoi_sua_foreign` FOREIGN KEY (`ma_nguoi_sua`) REFERENCES `nguoi_dung` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `nhat_ky_sua_chua_ma_phieu_bao_tri_foreign` FOREIGN KEY (`ma_phieu_bao_tri`) REFERENCES `phieu_bao_tri` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `nhat_ky_sua_chua_ma_thiet_bi_foreign` FOREIGN KEY (`ma_thiet_bi`) REFERENCES `thiet_bi` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `phan_cong_giang_vien`
---
 ALTER TABLE `phan_cong_giang_vien`
-  ADD CONSTRAINT `phan_cong_giang_vien_ma_cai_dat_thoi_gian_foreign` FOREIGN KEY (`ma_cai_dat_thoi_gian`) REFERENCES `cau_truc_cai_dat_thoi_gian` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `phan_cong_giang_vien_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `phan_cong_giang_vien_ma_lop_foreign` FOREIGN KEY (`ma_lop`) REFERENCES `lop_hoc` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `phan_cong_giang_vien_ma_lop_hoc_phan_foreign` FOREIGN KEY (`ma_lop_hoc_phan`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `phan_cong_giang_vien_ma_mon_foreign` FOREIGN KEY (`ma_mon`) REFERENCES `mon_hoc` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `phan_cong_giang_vien_ma_lop_hoc_phan_foreign` FOREIGN KEY (`ma_lop_hoc_phan`) REFERENCES `lop_hoc_phan` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `phieu_bao_tri`
---
 ALTER TABLE `phieu_bao_tri`
   ADD CONSTRAINT `phieu_bao_tri_ma_bao_cao_su_co_foreign` FOREIGN KEY (`ma_bao_cao_su_co`) REFERENCES `bao_cao_su_co` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `phieu_bao_tri_ma_nguoi_phu_trach_foreign` FOREIGN KEY (`ma_nguoi_phu_trach`) REFERENCES `nguoi_dung` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `phieu_muon`
---
 ALTER TABLE `phieu_muon`
   ADD CONSTRAINT `phieu_muon_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `phieu_muon_ma_phong_ban_foreign` FOREIGN KEY (`ma_phong_ban`) REFERENCES `phong_ban` (`id`) ON DELETE RESTRICT;
 
---
--- Ràng buộc cho bảng `phieu_nhap_may`
---
 ALTER TABLE `phieu_nhap_may`
   ADD CONSTRAINT `phieu_nhap_may_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `phieu_tra_may_ngoai`
---
 ALTER TABLE `phieu_tra_may_ngoai`
   ADD CONSTRAINT `phieu_tra_may_ngoai_ma_giang_vien_foreign` FOREIGN KEY (`ma_giang_vien`) REFERENCES `giang_vien` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `phieu_tra_may_ngoai_ma_nguoi_nhan_foreign` FOREIGN KEY (`ma_nguoi_nhan`) REFERENCES `nguoi_dung` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `phieu_tra_may_ngoai_ma_phieu_muon_foreign` FOREIGN KEY (`ma_phieu_muon`) REFERENCES `phieu_muon` (`id`) ON DELETE SET NULL;
 
---
--- Ràng buộc cho bảng `sinh_vien`
---
 ALTER TABLE `sinh_vien`
   ADD CONSTRAINT `sinh_vien_ma_lop_foreign` FOREIGN KEY (`ma_lop`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `sinh_vien_ma_nguoi_dung_foreign` FOREIGN KEY (`ma_nguoi_dung`) REFERENCES `nguoi_dung` (`id`) ON DELETE CASCADE;
 
---
--- Ràng buộc cho bảng `thiet_bi`
---
 ALTER TABLE `thiet_bi`
   ADD CONSTRAINT `thiet_bi_ma_phong_foreign` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE RESTRICT;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

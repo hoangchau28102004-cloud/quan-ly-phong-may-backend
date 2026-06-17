@@ -127,7 +127,6 @@ const getComputerById = async (id) => {
 
 const createComputer = async (data) => {
   const conn = db.promise();
-  // Accept aliases: phong_id | phong_may_id | ma_phong
   const ma_phong = data.phong_id || data.phong_may_id || data.ma_phong || data.ma_phong_id || null;
   const ma_cau_hinh = data.cau_hinh_id || data.ma_cau_hinh || null;
   const { ma_may, ma_qr = null, dia_chi_ip = null, dia_chi_mac = null, trang_thai = 'active', ghi_chu = null } = data;
@@ -162,11 +161,120 @@ const deleteComputer = async (id) => {
   return result.affectedRows || 0;
 };
 
+// ==========================================
+// IMPORT RECEIPT (PHIẾU NHẬP MÁY) 
+// ==========================================
+
+// 1. Lấy danh sách phiếu nhập
+const listImportReceipts = async () => {
+  const sql = `
+    SELECT pn.id, pn.ma_phieu_nhap, pn.ngay_nhap, pn.tong_so_luong, pn.ghi_chu, pm.ten_phong
+    FROM phieu_nhap_may pn
+    LEFT JOIN phong_may pm ON pn.ma_phong = pm.id
+    ORDER BY pn.created_at DESC
+  `;
+  const [rows] = await db.promise().query(sql);
+  return rows;
+};
+
+// 2. Tạo phiếu nhập mới (Transaction)
+const createImportReceipt = async (data) => {
+  const conn = await db.promise().getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const { 
+      ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, nha_cung_cap, ghi_chu_phieu,
+      cpu_brand, cpu_detail, ram_brand, ram_capacity, 
+      gpu_type, gpu_detail, mainboard, monitor, keyboard, mouse, 
+      storage_type, storage_capacity, os 
+    } = data;
+    
+    // Ghép dữ liệu chuẩn hóa
+    const boXuLy = `${cpu_brand} ${cpu_detail || ''}`.trim();
+    const ram = `${ram_brand || ''} ${ram_capacity}`.trim();
+    const oCung = `${storage_type} ${storage_capacity}`;
+    const cardDoHoa = gpu_type === 'Card Rời' ? gpu_detail : 'Card Onboard';
+    const heDieuHanh = os;
+    const manHinh = monitor || 'Không có';
+    
+    const ghiChuCauHinh = `Bo mạch chủ: ${mainboard || 'Không rõ'} | Bàn phím: ${keyboard || 'Không'} | Chuột: ${mouse || 'Không'}`;
+
+    let maCauHinh = null;
+    const cauHinhSoBo = `CPU: ${boXuLy} | RAM: ${ram} | VGA: ${cardDoHoa} | HDD/SSD: ${oCung}`;
+    const ghiChuFinal = `Nhà cung cấp: ${nha_cung_cap || 'Không'}\nCấu hình: ${cauHinhSoBo}\nGhi chú thêm: ${ghi_chu_phieu || ''}`;
+
+    // 1. Lưu cấu hình chung
+    if (tong_so_luong > 0) {
+      const [configResult] = await conn.query(
+        `INSERT INTO cau_hinh_may_tinh (bo_xu_ly, ram, o_cung, card_do_hoa, man_hinh, he_dieu_hanh, ghi_chu, created_at, updated_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [boXuLy, ram, oCung, cardDoHoa, manHinh, heDieuHanh, ghiChuCauHinh]
+      );
+      maCauHinh = configResult.insertId;
+    }
+
+    // 2. Insert Phiếu Nhập
+    await conn.query(
+      `INSERT INTO phieu_nhap_may 
+      (ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, cau_hinh_so_bo, trang_thai, ghi_chu, created_at, updated_at) 
+      VALUES (?, ?, ?, ?, ?, 'draft', ?, NOW(), NOW())`,
+      [ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, cauHinhSoBo, ghiChuFinal]
+    );
+
+    // 3. Sinh tự động máy tính
+    if (tong_so_luong > 0 && maCauHinh) {
+      const [existingComputers] = await conn.query(
+        'SELECT ten_may FROM may_tinh WHERE ma_phong = ?', 
+        [ma_phong]
+      );
+      
+      let maxStt = 0;
+      for (const comp of existingComputers) {
+        const match = comp.ten_may.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (num > maxStt) maxStt = num;
+        }
+      }
+
+      const maMayPrefix = ma_phieu_nhap.replace('PN-', 'PC-');
+      let insertValues = [];
+      
+      for (let i = 1; i <= tong_so_luong; i++) {
+        const sttTenMay = (maxStt + i).toString().padStart(3, '0'); 
+        const tenMay = `Máy ${sttTenMay}`;
+        
+        const sttMaMay = i.toString().padStart(3, '0');
+        const maMay = `${maMayPrefix}-${sttMaMay}`;
+        
+        insertValues.push([ma_phong, maCauHinh, maMay, tenMay, 'active', new Date(), new Date()]);
+      }
+
+      await conn.query(
+        `INSERT INTO may_tinh (ma_phong, ma_cau_hinh, ma_may, ten_may, trang_thai, created_at, updated_at) VALUES ?`,
+        [insertValues]
+      );
+    }
+
+    await conn.commit();
+    return { success: true, message: 'Tạo phiếu nhập và cấu hình thành công!' };
+
+  } catch (error) {
+    await conn.rollback();
+    throw new Error('Lỗi Transaction: ' + error.message);
+  } finally {
+    conn.release();
+  }
+};
+
 module.exports = {
   // rooms
   listRooms, getRoomById, createRoom, updateRoom, deleteRoom,
   // configs
   listConfigs, getConfigById, createConfig, updateConfig, deleteConfig,
   // computers
-  listComputers, getComputerById, createComputer, updateComputer, deleteComputer
+  listComputers, getComputerById, createComputer, updateComputer, deleteComputer,
+  // Import receipt
+  listImportReceipts, createImportReceipt
 };

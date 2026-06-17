@@ -4,17 +4,20 @@ const db = require('../config/db');
 const listIncidents = async (opts = {}) => {
   const conn = db.promise();
   const { page, limit, filter, trang_thai } = opts;
-  let sql = `SELECT bc.id, bc.tieu_de, bc.mo_ta, bc.loai_su_co, bc.muc_do, bc.trang_thai, bc.ma_phong, bc.ma_may_tinh, bc.ma_thiet_bi, bc.created_at,
-                    pm.ten_phong, mt.ma_may as ma_may, tb.ten_thiet_bi
+  // Đã xóa bc.ma_phong khỏi SELECT và sửa JOIN để lấy phòng qua mt.ma_phong
+  let sql = `SELECT bc.id, bc.tieu_de, bc.mo_ta, bc.loai_su_co, bc.muc_do, bc.trang_thai, bc.ma_may_tinh, bc.ma_thiet_bi, bc.created_at,
+                    pm.ten_phong, mt.ma_may, tb.ten_thiet_bi
              FROM bao_cao_su_co bc
-             LEFT JOIN phong_may pm ON bc.ma_phong = pm.id
              LEFT JOIN may_tinh mt ON bc.ma_may_tinh = mt.id
+             LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
              LEFT JOIN thiet_bi tb ON bc.ma_thiet_bi = tb.id
              WHERE 1=1`;
+             
   const params = [];
   if (trang_thai) { sql += ' AND bc.trang_thai = ?'; params.push(trang_thai); }
   if (filter) { sql += ' AND (bc.tieu_de LIKE ? OR bc.mo_ta LIKE ?)'; params.push(`%${filter}%`, `%${filter}%`); }
   sql += ' ORDER BY bc.created_at DESC';
+  
   if (limit && Number(limit) > 0) {
     const l = Number(limit);
     const p = page && Number(page) > 0 ? Number(page) : 1;
@@ -32,10 +35,11 @@ const getIncidentById = async (id) => {
 
 const createIncident = async (data) => {
   const conn = db.promise();
-  const { ma_nguoi_bao_cao, ma_phong, ma_may_tinh, ma_thiet_bi, loai_su_co, tieu_de, mo_ta, muc_do = 'normal', trang_thai = 'open' } = data;
-  const sql = `INSERT INTO bao_cao_su_co (ma_nguoi_bao_cao, ma_phong, ma_may_tinh, ma_thiet_bi, loai_su_co, tieu_de, mo_ta, muc_do, trang_thai, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
-  const [result] = await conn.query(sql, [ma_nguoi_bao_cao, ma_phong || null, ma_may_tinh || null, ma_thiet_bi || null, loai_su_co, tieu_de, mo_ta, muc_do, trang_thai]);
+  // Đã xóa ma_phong vì bảng không còn cột này
+  const { ma_nguoi_bao_cao, ma_may_tinh, ma_thiet_bi, loai_su_co, tieu_de, mo_ta, muc_do = 'normal', trang_thai = 'open' } = data;
+  const sql = `INSERT INTO bao_cao_su_co (ma_nguoi_bao_cao, ma_may_tinh, ma_thiet_bi, loai_su_co, tieu_de, mo_ta, muc_do, trang_thai, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+  const [result] = await conn.query(sql, [ma_nguoi_bao_cao, ma_may_tinh || null, ma_thiet_bi || null, loai_su_co, tieu_de, mo_ta, muc_do, trang_thai]);
   const insertId = result.insertId || null;
   if (insertId) return getIncidentById(insertId);
   return null;
@@ -45,7 +49,8 @@ const updateIncident = async (id, data) => {
   const conn = db.promise();
   const sets = [];
   const params = [];
-  ['ma_nguoi_bao_cao','ma_phong','ma_may_tinh','ma_thiet_bi','loai_su_co','tieu_de','mo_ta','muc_do','trang_thai'].forEach(k => {
+  // Đã xóa ma_phong khỏi danh sách update
+  ['ma_nguoi_bao_cao','ma_may_tinh','ma_thiet_bi','loai_su_co','tieu_de','mo_ta','muc_do','trang_thai'].forEach(k => {
     if (data[k] !== undefined) { sets.push(`${k} = ?`); params.push(data[k]); }
   });
   if (sets.length === 0) return 0;
@@ -60,16 +65,16 @@ const deleteIncident = async (id) => {
   return result.affectedRows || 0;
 };
 
-// Tickets - phieu_bao_tri
+// Tickets - phieu_bao_tri (Giữ nguyên vì đã khớp)
 const listTickets = async (opts = {}) => {
   const conn = db.promise();
   const { page, limit, filter, trang_thai } = opts;
   let sql = `SELECT pb.id, pb.ma_bao_cao_su_co, pb.ma_nguoi_phu_trach, pb.loai_bao_tri, pb.ngay_bat_dau, pb.ngay_ket_thuc, pb.chi_phi, pb.trang_thai, pb.created_at,
-                     bc.tieu_de as tieu_de_bao_cao, nd.ho_ten as nguoi_phu_trach
-              FROM phieu_bao_tri pb
-              LEFT JOIN bao_cao_su_co bc ON pb.ma_bao_cao_su_co = bc.id
-              LEFT JOIN nguoi_dung nd ON pb.ma_nguoi_phu_trach = nd.id
-              WHERE 1=1`;
+                    bc.tieu_de as tieu_de_bao_cao, nd.ho_ten as nguoi_phu_trach
+             FROM phieu_bao_tri pb
+             LEFT JOIN bao_cao_su_co bc ON pb.ma_bao_cao_su_co = bc.id
+             LEFT JOIN nguoi_dung nd ON pb.ma_nguoi_phu_trach = nd.id
+             WHERE 1=1`;
   const params = [];
   if (trang_thai) { sql += ' AND pb.trang_thai = ?'; params.push(trang_thai); }
   if (filter) { sql += ' AND (pb.loai_bao_tri LIKE ? OR bc.tieu_de LIKE ?)'; params.push(`%${filter}%`, `%${filter}%`); }

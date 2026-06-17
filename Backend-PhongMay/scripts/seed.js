@@ -8,7 +8,7 @@ const path = require('path');
   const port = parseInt(process.env.DB_PORT || '3306', 10);
   const user = process.env.DB_USER || 'root';
   const password = process.env.DB_PASSWORD || '';
-  const dbName = process.env.DB_NAME || 'pmcnttckc';
+  const dbName = process.env.DB_NAME || 'qlpm'; // Đổi tên DB khớp với của bạn
 
   try {
     const connection = await mysql.createConnection({ host, port, user, password, multipleStatements: true });
@@ -18,7 +18,7 @@ const path = require('path');
     let sqlContent = '';
     if (fs.existsSync(sqlPath)) {
       sqlContent = fs.readFileSync(sqlPath, 'utf8');
-      // make CREATE TABLE idempotent
+      // Thêm IF NOT EXISTS để không bị lỗi nếu bảng đã tồn tại
       sqlContent = sqlContent.replace(/CREATE TABLE\s+/gi, 'CREATE TABLE IF NOT EXISTS ');
     } else {
       console.warn('SQL_DATN.txt not found, skipping DDL creation.');
@@ -29,24 +29,24 @@ const path = require('path');
       USE ${dbName};
       ${sqlContent}
 
-      INSERT IGNORE INTO vai_tro (ten_vai_tro) VALUES ('ADMIN'), ('GIANG_VIEN'), ('SINH_VIEN');
-      INSERT IGNORE INTO lop_hoc (ma_lop) VALUES ('CNTT-01');
-      INSERT IGNORE INTO mon_hoc (ten_mon) VALUES ('Lập trình căn bản'), ('Cấu trúc dữ liệu');
-      INSERT IGNORE INTO ca_hoc (gio_bat_dau, gio_ket_thuc) VALUES ('07:00:00', '09:30:00'), ('10:00:00', '12:30:00');
-      INSERT IGNORE INTO phong_may (ten_phong) VALUES ('P101'), ('P102');
-      INSERT IGNORE INTO cau_hinh (cpu, ram, o_cung, gpu) VALUES ('Intel i5', '8GB', '256GB SSD', 'IGP');
+      -- Chèn dữ liệu cơ bản (Dùng INSERT IGNORE để tránh lỗi trùng)
+      INSERT IGNORE INTO vai_tro (id, ten_vai_tro, mo_ta) VALUES 
+      (1, 'admin', 'Quản trị viên'), 
+      (2, 'student', 'Sinh viên'), 
+      (3, 'teacher', 'Giảng viên');
 
-      INSERT IGNORE INTO nguoi_dung (tai_khoan, mat_khau, ho_ten, email, vai_tro_id, lop_hoc_id) VALUES
-        ('admin','admin','Admin Quản trị','admin@example.com',1,NULL),
-        ('gv1','gv1','Giảng Viên 1','gv1@example.com',2,NULL),
-        ('sv1','sv1','Sinh Viên 1','sv1@example.com',3,1);
+      -- Tạo phòng mẫu (bao gồm Kho)
+      INSERT IGNORE INTO phong_may (ma_phong, ten_phong, vi_tri, suc_chua, trang_thai) VALUES 
+      ('KHO01', 'Kho Thiết Bị', 'Tầng Trệt', 100, 'active'),
+      ('PM01', 'Phòng Máy 1', 'Tầng 1', 40, 'active');
 
-      INSERT IGNORE INTO may_tinh (ma_may, ma_qr, ip_may, he_dieu_hanh, trang_thai, phong_may_id, cau_hinh_id) VALUES
-        ('PC-01','QR-PC-01','192.168.0.101','Windows 10','TOT',1,1),
-        ('PC-02','QR-PC-02','192.168.0.102','Windows 10','TOT',1,1);
+      -- Tạo tài khoản Admin mặc định (mật khẩu đã hash sẵn)
+      -- Lưu ý: mật khẩu '$2y$12$lnXGf3FDGb0pL0RyI5CaHO9043nimUd839GlCFeK5BfOFJ0wlOquW' là 'admin'
+      INSERT IGNORE INTO nguoi_dung (id, ma_vai_tro, ho_ten, email, mat_khau, so_dien_thoai) VALUES
+      (1, 1, 'Admin Hệ Thống', 'admin@itlab.test', '$2y$12$lnXGf3FDGb0pL0RyI5CaHO9043nimUd839GlCFeK5BfOFJ0wlOquW', '0900000001');
     `;
 
-    console.log('Running seed SQL (this may take a few seconds)...');
+    console.log('Running seed SQL...');
     await connection.query(seedSql);
     console.log('Seeding complete.');
     await connection.end();
