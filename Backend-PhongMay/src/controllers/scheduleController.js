@@ -13,16 +13,26 @@ const getScheduleList = async (req, res, next) => {
 
 const bookRoom = async (req, res, next) => {
   try {
-    // Body tên mới: `ngay_yeu_cau`, `ma_nguoi_dung`, `ma_phong`
-    const { ngay_yeu_cau, ma_nguoi_dung, ma_phong } = req.body;
-    const created = await scheduleService.bookRoom({ ngay_yeu_cau, nguoi_dung_id: ma_nguoi_dung, phong_may_id: ma_phong });
+    // Nhận thêm các trường ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich
+    const { ngay_yeu_cau, ma_nguoi_dung, ma_phong, ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich } = req.body;
+    
+    const created = await scheduleService.bookRoom({ 
+        ngay_yeu_cau, 
+        nguoi_dung_id: ma_nguoi_dung, 
+        phong_may_id: ma_phong,
+        ma_ca,
+        tiet_bat_dau,
+        tiet_ket_thuc,
+        muc_dich
+    });
+
     if (!created) return res.status(500).json({ success: false, message: 'Không thể tạo yêu cầu đặt phòng' });
     res.status(201).json({ success: true, message: 'Đăng ký mượn phòng thành công, đang chờ duyệt!', id: created.id, data: created });
   } catch (error) {
-    next(error);
+    // Bắt lỗi nếu tài khoản không phải giảng viên sẽ văng ra đây
+    res.status(400).json({ success: false, message: error.message });
   }
 };
-
 const updateBooking = async (req, res, next) => {
   try {
     const { id } = req.params;

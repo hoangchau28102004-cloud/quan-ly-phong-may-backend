@@ -63,21 +63,39 @@ const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
 const bookRoom = async (data) => {
   const conn = db.promise();
   try {
-    const [gvRows] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [data.nguoi_dung_id]);
-    let ma_giang_vien = data.nguoi_dung_id;
-    if (gvRows.length > 0) ma_giang_vien = gvRows[0].id;
+    // 1. Tìm ID thực sự của giảng viên dựa trên ID người dùng đăng nhập
+    let [gvRows] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [data.nguoi_dung_id]);
+    
+    let ma_giang_vien;
 
-    // Lưu ý: đảm bảo dữ liệu truyền vào khớp với các cột: 
-    // ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet
-    const sql = `INSERT INTO dat_phong_may (ma_giang_vien, ma_phong, ngay_dat, ma_ca, muc_dich, trang_thai_duyet, created_at) 
-                 VALUES (?, ?, ?, ?, ?, ?, NOW())`;
+    // NẾU TÀI KHOẢN CHƯA CÓ HỒ SƠ GIẢNG VIÊN -> TỰ ĐỘNG TẠO MỚI ĐỂ TRÁNH LỖI
+    if (gvRows.length === 0) {
+      // Tự động sinh mã giảng viên ngẫu nhiên (VD: GV2_1234)
+      const ma_gv_tam = 'GV' + data.nguoi_dung_id + '_' + Date.now().toString().slice(-4);
+      
+      const [insertGv] = await conn.query(
+        'INSERT INTO giang_vien (ma_nguoi_dung, ma_giang_vien, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        [data.nguoi_dung_id, ma_gv_tam]
+      );
+      ma_giang_vien = insertGv.insertId;
+      console.log(`[Hệ thống] Đã tự động tạo hồ sơ giảng viên mới (ID: ${ma_giang_vien}) cho User ID: ${data.nguoi_dung_id}`);
+    } else {
+      ma_giang_vien = gvRows[0].id;
+    }
+
+    // 2. Insert vào bảng dat_phong_may với đầy đủ các trường yêu cầu
+    const sql = `INSERT INTO dat_phong_may 
+                 (ma_giang_vien, ma_phong, ngay_dat, ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich, trang_thai_duyet, created_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
     
     const [result] = await conn.query(sql, [
       ma_giang_vien, 
       data.phong_may_id, 
       data.ngay_yeu_cau, 
-      data.ma_ca || null, 
-      data.muc_dich || null, 
+      data.ma_ca || 'Sáng', // Fallback an toàn
+      data.tiet_bat_dau || 1,
+      data.tiet_ket_thuc || 1,
+      data.muc_dich || '', 
       data.trang_thai_duyet || 'pending'
     ]);
     
@@ -88,6 +106,7 @@ const bookRoom = async (data) => {
     }
     return null;
   } catch (err) {
+    console.error("Lỗi khi mượn phòng:", err);
     throw err;
   }
 };
