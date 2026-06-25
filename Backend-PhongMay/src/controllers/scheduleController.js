@@ -33,13 +33,34 @@ const bookRoom = async (req, res, next) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+// --- HÀM MỚI: SỬA THÔNG TIN YÊU CẦU MƯỢN PHÒNG (GIẢNG VIÊN) ---
+const editBooking = async (req, res, next) => {
+  try {
+    const bookingId = req.params.id;
+    // Gọi hàm updateBooking từ service (hàm ta đã thêm ở lần trước)
+    const affectedRows = await scheduleService.updateBooking(bookingId, req.body);
+
+    if (affectedRows > 0) {
+      res.json({ success: true, message: 'Cập nhật yêu cầu thành công!' });
+    } else {
+      res.status(400).json({ success: false, message: 'Không thể cập nhật (Có thể phiếu đã được duyệt hoặc không tồn tại).' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- HÀM CŨ: DUYỆT PHIẾU / THAY ĐỔI TRẠNG THÁI (ADMIN) ---
 const updateBooking = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { trang_thai_duyet, ma_nguoi_duyet } = req.body;
     if (!trang_thai_duyet) return res.status(400).json({ success: false, message: 'Thiếu trang_thai_duyet' });
+    
     const affected = await scheduleService.updateBookingStatus(id, trang_thai_duyet, ma_nguoi_duyet);
     if (affected === 0) return res.status(404).json({ success: false, message: 'Yêu cầu đặt phòng không tồn tại' });
+    
     res.json({ success: true, message: 'Cập nhật trạng thái đặt phòng thành công' });
   } catch (error) {
     next(error);
@@ -52,7 +73,15 @@ const getBookingsList = async (req, res, next) => {
     const opts = { trang_thai_duyet, ma_phong, ma_giang_vien, page, limit };
     const rows = await scheduleService.getBookings(opts);
     res.json({ success: true, data: rows });
-  } catch (error) { next(error); }
+  } catch (error) { 
+    next(error); 
+  }
 };
 
-module.exports = { getScheduleList, bookRoom, updateBooking, getBookingsList };
+module.exports = { 
+  getScheduleList, 
+  bookRoom, 
+  editBooking, 
+  updateBooking, 
+  getBookingsList 
+};

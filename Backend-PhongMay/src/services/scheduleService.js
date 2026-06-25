@@ -28,7 +28,7 @@ const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
 
     const params = [];
 
-    // Lọc theo tuần (tuan_id là bigint của bảng tuan)
+    // Lọc theo tuần
     if (tuan_id) {
       sql += ` AND lpm.ma_tuan = ?`;
       params.push(tuan_id);
@@ -45,7 +45,6 @@ const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
         sql += ` AND lpm.ma_giang_vien = ?`;
         params.push(gvRows[0].id);
       } else {
-        // Fallback nếu không phải giảng viên
         sql += ` AND lpm.ma_giang_vien = ?`;
         params.push(nguoi_dung_id);
       }
@@ -54,7 +53,30 @@ const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
     sql += ` ORDER BY lpm.ngay_hoc_cu_the ASC, lpm.so_tiet_bat_dau ASC`;
 
     const [rows] = await conn.query(sql, params);
-    return rows;
+    
+    // ========================================================
+    // ĐIỂM SỬA CHỮA QUAN TRỌNG: Ép kiểu và map dữ liệu cho Flutter
+    // ========================================================
+    return rows.map(r => {
+      let thuInt = 2; // Mặc định
+      if (r.thu === 'Thứ 2') thuInt = 2;
+      else if (r.thu === 'Thứ 3') thuInt = 3;
+      else if (r.thu === 'Thứ 4') thuInt = 4;
+      else if (r.thu === 'Thứ 5') thuInt = 5;
+      else if (r.thu === 'Thứ 6') thuInt = 6;
+      else if (r.thu === 'Thứ 7') thuInt = 7;
+      else if (r.thu === 'Chủ Nhật' || r.thu === 'CN') thuInt = 8;
+
+      return { 
+        ...r, 
+        thu: thuInt,
+        // Ép dữ liệu thành dạng chữ để Flutter Model (ScheduleItem) không bị sập
+        gio_bat_dau: r.tiet_bat_dau ? 'Tiết ' + r.tiet_bat_dau : 'Tiết 1',
+        gio_ket_thuc: r.tiet_ket_thuc ? 'Tiết ' + r.tiet_ket_thuc : 'Tiết 3',
+        ma_lop: r.ma_lop || 'Lớp chung',
+        ten_giang_vien: r.ten_giang_vien || 'Đang cập nhật'
+      };
+    });
   } catch (err) {
     throw err;
   }
@@ -63,27 +85,20 @@ const getSchedule = async (tuan_id, lop_hoc_id, nguoi_dung_id) => {
 const bookRoom = async (data) => {
   const conn = db.promise();
   try {
-    // 1. Tìm ID thực sự của giảng viên dựa trên ID người dùng đăng nhập
     let [gvRows] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [data.nguoi_dung_id]);
-    
     let ma_giang_vien;
 
-    // NẾU TÀI KHOẢN CHƯA CÓ HỒ SƠ GIẢNG VIÊN -> TỰ ĐỘNG TẠO MỚI ĐỂ TRÁNH LỖI
     if (gvRows.length === 0) {
-      // Tự động sinh mã giảng viên ngẫu nhiên (VD: GV2_1234)
       const ma_gv_tam = 'GV' + data.nguoi_dung_id + '_' + Date.now().toString().slice(-4);
-      
       const [insertGv] = await conn.query(
         'INSERT INTO giang_vien (ma_nguoi_dung, ma_giang_vien, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
         [data.nguoi_dung_id, ma_gv_tam]
       );
       ma_giang_vien = insertGv.insertId;
-      console.log(`[Hệ thống] Đã tự động tạo hồ sơ giảng viên mới (ID: ${ma_giang_vien}) cho User ID: ${data.nguoi_dung_id}`);
     } else {
       ma_giang_vien = gvRows[0].id;
     }
 
-    // 2. Insert vào bảng dat_phong_may với đầy đủ các trường yêu cầu
     const sql = `INSERT INTO dat_phong_may 
                  (ma_giang_vien, ma_phong, ngay_dat, ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich, trang_thai_duyet, created_at) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
@@ -92,7 +107,7 @@ const bookRoom = async (data) => {
       ma_giang_vien, 
       data.phong_may_id, 
       data.ngay_yeu_cau, 
-      data.ma_ca || 'Sáng', // Fallback an toàn
+      data.ma_ca || 'Sáng', 
       data.tiet_bat_dau || 1,
       data.tiet_ket_thuc || 1,
       data.muc_dich || '', 
@@ -106,15 +121,12 @@ const bookRoom = async (data) => {
     }
     return null;
   } catch (err) {
-    console.error("Lỗi khi mượn phòng:", err);
     throw err;
   }
 };
 
 const updateBookingStatus = async (id, status, reviewerId) => {
   const conn = db.promise();
-  // Bảng dat_phong_may có cột ma_nguoi_duyet không? 
-  // Nếu schema cũ có ma_nguoi_duyet thì dùng, nếu không phải đổi tên cột cho khớp
   const sql = 'UPDATE dat_phong_may SET trang_thai_duyet = ?, ma_nguoi_duyet = ?, updated_at = NOW() WHERE id = ?';
   const [result] = await conn.query(sql, [status, reviewerId || null, id]);
   return result.affectedRows || 0;
@@ -147,4 +159,18 @@ const getBookings = async (opts = {}) => {
   return rows;
 };
 
-module.exports = { getSchedule, bookRoom, updateBookingStatus, getBookings };
+const updateBooking = async (id, data) => {
+  const conn = db.promise();
+  const { ngay_dat, ma_phong, ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich } = data;
+
+  const sql = `
+    UPDATE dat_phong_may 
+    SET ngay_dat = ?, ma_phong = ?, ma_ca = ?, tiet_bat_dau = ?, tiet_ket_thuc = ?, muc_dich = ?, updated_at = NOW()
+    WHERE id = ? AND trang_thai_duyet = 'pending'
+  `;
+  
+  const [result] = await conn.query(sql, [ngay_dat, ma_phong, ma_ca, tiet_bat_dau, tiet_ket_thuc, muc_dich, id]);
+  return result.affectedRows || 0;
+};
+
+module.exports = { getSchedule, bookRoom, updateBookingStatus, getBookings, updateBooking };

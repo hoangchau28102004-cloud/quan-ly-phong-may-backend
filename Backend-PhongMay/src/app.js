@@ -25,11 +25,12 @@ app.use(express.json());
 app.use('/api', authRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api', categoryRoutes); 
-app.use('/api', roomRoutes); // <-- THÊM DÒNG NÀY (/api/may-tinh)
+app.use('/api/phong-may', roomRoutes);
 app.use('/api', userRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', assetsRoutes);
 app.use('/api', maintenanceRoutes);
+
 
 // Middleware bắt lỗi chung
 app.use((err, req, res, next) => {
