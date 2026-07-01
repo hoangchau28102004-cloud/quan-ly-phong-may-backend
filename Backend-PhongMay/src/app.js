@@ -6,11 +6,12 @@ require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const scheduleRoutes = require('./routes/scheduleRoutes');
 const categoryRoutes = require('./routes/categoryRoutes'); 
-const roomRoutes = require('./routes/roomRoutes'); // <-- THÊM DÒNG NÀY
+const roomRoutes = require('./routes/roomRoutes');
 const userRoutes = require('./routes/userRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const assetsRoutes = require('./routes/assetsRoutes');
 const maintenanceRoutes = require('./routes/maintenanceRoutes');
+const issueRoutes = require('./routes/issueRoutes');
 
 const app = express();
 
@@ -30,6 +31,9 @@ app.use('/api', userRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', assetsRoutes);
 app.use('/api', maintenanceRoutes);
+
+// --- THÊM DÒNG NÀY: Gắn API báo sự cố vào hệ thống ---
+app.use('/api/issues', issueRoutes);
 
 
 // Middleware bắt lỗi chung

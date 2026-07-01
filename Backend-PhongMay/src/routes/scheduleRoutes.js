@@ -8,8 +8,10 @@ router.get('/', scheduleController.getBookingsList);
 
 router.post('/book', scheduleController.bookRoom);
 
-router.put('/:id', scheduleController.editBooking);
+// Hủy phiếu chưa duyệt
+router.delete('/:id', scheduleController.deleteBooking);
 
+// Duyệt phiếu (Admin)
 router.patch('/:id/status', scheduleController.updateBooking);
 
 module.exports = router;
