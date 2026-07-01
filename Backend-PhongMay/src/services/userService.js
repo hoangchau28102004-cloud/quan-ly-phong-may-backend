@@ -7,6 +7,7 @@ const _detectCols = async () => {
   return {
     hasEmail: cols.includes('email'),
     hasTaiKhoan: cols.includes('tai_khoan'),
+    hasDeletedAt: cols.includes('deleted_at'),
     roleCol: cols.includes('ma_vai_tro') ? 'ma_vai_tro' : (cols.includes('vai_tro_id') ? 'vai_tro_id' : null),
     lopCol: cols.includes('lop_hoc_id') ? 'lop_hoc_id' : (cols.includes('ma_lop') ? 'ma_lop' : (cols.includes('lop_id') ? 'lop_id' : null)),
     phoneCol: cols.includes('so_dien_thoai') ? 'so_dien_thoai' : (cols.includes('phone') ? 'phone' : null),
@@ -17,7 +18,7 @@ const _detectCols = async () => {
 
 const getUsers = async (opts = {}) => {
   const conn = db.promise();
-  const { hasEmail, hasTaiKhoan, roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
+  const { hasEmail, hasTaiKhoan, hasDeletedAt, roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
 
   const { orderBy = 'created_at', descending = true, page, limit, filter } = opts;
 
@@ -38,8 +39,10 @@ const getUsers = async (opts = {}) => {
   const params = [];
   if (roleCol) sql += ` LEFT JOIN vai_tro vt ON nd.${roleCol} = vt.id`;
 
-  // Chỉ lấy những user chưa bị xóa (Soft Delete)
-  const whereParts = ['nd.deleted_at IS NULL'];
+  const whereParts = [];
+  if (hasDeletedAt) {
+    whereParts.push('nd.deleted_at IS NULL');
+  }
 
   // Lọc theo từ khóa
   if (filter) {
@@ -51,7 +54,9 @@ const getUsers = async (opts = {}) => {
     whereParts.push(`(${filterSearch.join(' OR ')})`);
   }
 
-  sql += ' WHERE ' + whereParts.join(' AND ');
+  if (whereParts.length > 0) {
+    sql += ' WHERE ' + whereParts.join(' AND ');
+  }
 
   const allowedOrder = ['created_at', 'ho_ten', 'id', 'email', 'tai_khoan'];
   const orderCol = allowedOrder.includes(orderBy) ? orderBy : 'created_at';
@@ -163,7 +168,10 @@ const toggleStatus = async (id, active) => {
 
 const deleteUser = async (id) => {
   const conn = db.promise();
-  const sql = 'UPDATE nguoi_dung SET deleted_at = CURRENT_TIMESTAMP, trang_thai = 0 WHERE id = ?';
+  const { hasDeletedAt } = await _detectCols();
+  const sql = hasDeletedAt
+    ? 'UPDATE nguoi_dung SET deleted_at = CURRENT_TIMESTAMP, trang_thai = 0 WHERE id = ?'
+    : 'UPDATE nguoi_dung SET trang_thai = 0 WHERE id = ?';
   const [result] = await conn.query(sql, [id]);
   return result.affectedRows || 0;
 };

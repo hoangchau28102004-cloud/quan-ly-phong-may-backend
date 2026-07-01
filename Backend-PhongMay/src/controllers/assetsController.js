@@ -1,6 +1,6 @@
 const assetsService = require('../services/assetsService');
 
-// Rooms
+// ======================= PHÒNG MÁY =======================
 const listRooms = async (req, res, next) => {
   try {
     const { page, limit, filter } = req.query;
@@ -45,40 +45,7 @@ const deleteRoom = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// Configs
-const listConfigs = async (req, res, next) => {
-  try {
-    const rows = await assetsService.listConfigs();
-    res.json({ success: true, data: rows });
-  } catch (err) { next(err); }
-};
-
-const createConfig = async (req, res, next) => {
-  try {
-    const created = await assetsService.createConfig(req.body);
-    res.status(201).json({ success: true, message: 'Tạo cấu hình thành công', id: created.id, data: created });
-  } catch (err) { next(err); }
-};
-
-const updateConfig = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const affected = await assetsService.updateConfig(id, req.body);
-    if (affected === 0) return res.status(404).json({ success: false, message: 'Cấu hình không tồn tại hoặc không có thay đổi' });
-    res.json({ success: true, message: 'Cập nhật cấu hình thành công' });
-  } catch (err) { next(err); }
-};
-
-const deleteConfig = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const affected = await assetsService.deleteConfig(id);
-    if (affected === 0) return res.status(404).json({ success: false, message: 'Cấu hình không tồn tại' });
-    res.json({ success: true, message: 'Xóa cấu hình thành công' });
-  } catch (err) { next(err); }
-};
-
-// Computers
+// ======================= MÁY TÍNH =======================
 const listComputers = async (req, res, next) => {
   try {
     const { page, limit, filter } = req.query;
@@ -123,10 +90,9 @@ const deleteComputer = async (req, res, next) => {
 };
 
 // ==========================================
-// IMPORT RECEIPT (PHIẾU NHẬP MÁY)
+// IMPORT RECEIPT (PHIẾU NHẬP MÁY) & ĐIỀU CHUYỂN
 // ==========================================
 
-// 1. Hàm lấy danh sách phiếu nhập để hiển thị lên bảng
 const listImportReceipts = async (req, res, next) => {
   try {
     const rows = await assetsService.listImportReceipts();
@@ -136,10 +102,8 @@ const listImportReceipts = async (req, res, next) => {
   }
 };
 
-// 2. Hàm tạo phiếu nhập mới
 const createImportReceipt = async (req, res, next) => {
   try {
-    // req.body chứa toàn bộ JSON cấu hình gửi từ Flutter
     const result = await assetsService.createImportReceipt(req.body);
     res.status(201).json(result);
   } catch (err) {
@@ -147,11 +111,25 @@ const createImportReceipt = async (req, res, next) => {
   }
 };
 
+const transferMachines = async (req, res, next) => {
+  try {
+    const result = await assetsService.transferMachines(req.body);
+    res.status(200).json(result);
+  } catch (err) { next(err); }
+};
+
+const getTransferHistory = async (req, res, next) => {
+  try {
+    const data = await assetsService.getTransferHistory();
+    res.status(200).json({ success: true, data: data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
-  listConfigs, createConfig, updateConfig, deleteConfig,
   listComputers, getComputer, createComputer, updateComputer, deleteComputer,
-  // Thêm cả 2 hàm của phiếu nhập máy vào export
-  listImportReceipts, 
-  createImportReceipt 
+  listImportReceipts, createImportReceipt,
+  transferMachines, getTransferHistory
 };

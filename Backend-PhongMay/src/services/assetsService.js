@@ -1,280 +1,314 @@
 const db = require('../config/db');
 
-// Rooms (phong_may)
-const listRooms = async (opts = {}) => {
-  const conn = db.promise();
-  const { page, limit, filter } = opts;
-  let sql = 'SELECT id, ma_phong, ten_phong, suc_chua, trang_thai, mo_ta, created_at FROM phong_may WHERE 1=1';
-  const params = [];
-  if (filter) { sql += ' AND (ten_phong LIKE ? OR ma_phong LIKE ?)'; params.push(`%${filter}%`, `%${filter}%`); }
-  sql += ' ORDER BY created_at DESC';
-  if (limit && Number(limit) > 0) {
-    const l = Number(limit);
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const offset = (p - 1) * l;
-    sql += ' LIMIT ? OFFSET ?'; params.push(l, offset);
-  }
-  const [rows] = await conn.query(sql, params);
-  return rows;
-};
-
-const getRoomById = async (id) => {
-  const conn = db.promise();
-  const [rows] = await conn.query('SELECT id, ma_phong, ten_phong, suc_chua, trang_thai, mo_ta, created_at FROM phong_may WHERE id = ?', [id]);
-  return rows[0] || null;
-};
-
-const createRoom = async (data) => {
-  const conn = db.promise();
-  const { ma_phong, ten_phong, suc_chua = 0, mo_ta = null, trang_thai = 'active' } = data;
-  const sql = 'INSERT INTO phong_may (ma_phong, ten_phong, suc_chua, mo_ta, trang_thai, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
-  const [result] = await conn.query(sql, [ma_phong, ten_phong, suc_chua, mo_ta, trang_thai]);
-  const insertId = result.insertId || result.insert_id || null;
-  if (insertId) return getRoomById(insertId);
-  return null;
-};
-
-const updateRoom = async (id, data) => {
-  const conn = db.promise();
-  const sets = [];
-  const params = [];
-  if (data.ma_phong !== undefined) { sets.push('ma_phong = ?'); params.push(data.ma_phong); }
-  if (data.ten_phong !== undefined) { sets.push('ten_phong = ?'); params.push(data.ten_phong); }
-  if (data.suc_chua !== undefined) { sets.push('suc_chua = ?'); params.push(data.suc_chua); }
-  if (data.trang_thai !== undefined) { sets.push('trang_thai = ?'); params.push(data.trang_thai); }
-  if (data.mo_ta !== undefined) { sets.push('mo_ta = ?'); params.push(data.mo_ta); }
-  if (sets.length === 0) return 0;
-  params.push(id);
-  const sql = `UPDATE phong_may SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`;
-  const [result] = await conn.query(sql, params);
-  return result.affectedRows || 0;
-};
-
-const deleteRoom = async (id) => {
-  const conn = db.promise();
-  const [result] = await conn.query('DELETE FROM phong_may WHERE id = ?', [id]);
-  return result.affectedRows || 0;
-};
-
-// Configs (cau_hinh_may_tinh)
-const listConfigs = async () => {
-  const [rows] = await db.promise().query('SELECT * FROM cau_hinh_may_tinh ORDER BY id');
-  return rows;
-};
-
-const getConfigById = async (id) => {
-  const [rows] = await db.promise().query('SELECT * FROM cau_hinh_may_tinh WHERE id = ?', [id]);
-  return rows[0] || null;
-};
-
-const createConfig = async (data) => {
-  const { bo_xu_ly, ram, o_cung, card_do_hoa, man_hinh, he_dieu_hanh, ghi_chu } = data;
-  const sql = `INSERT INTO cau_hinh_may_tinh (bo_xu_ly, ram, o_cung, card_do_hoa, man_hinh, he_dieu_hanh, ghi_chu, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
-  const [result] = await db.promise().query(sql, [bo_xu_ly, ram, o_cung, card_do_hoa, man_hinh, he_dieu_hanh, ghi_chu]);
-  const insertId = result.insertId || null;
-  if (insertId) return getConfigById(insertId);
-  return null;
-};
-
-const updateConfig = async (id, data) => {
-  const conn = db.promise();
-  const sets = [];
-  const params = [];
-  ['bo_xu_ly','ram','o_cung','card_do_hoa','man_hinh','he_dieu_hanh','ghi_chu'].forEach(k => {
-    if (data[k] !== undefined) { sets.push(`${k} = ?`); params.push(data[k]); }
-  });
-  if (sets.length === 0) return 0;
-  params.push(id);
-  const sql = `UPDATE cau_hinh_may_tinh SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`;
-  const [result] = await conn.query(sql, params);
-  return result.affectedRows || 0;
-};
-
-const deleteConfig = async (id) => {
-  const [result] = await db.promise().query('DELETE FROM cau_hinh_may_tinh WHERE id = ?', [id]);
-  return result.affectedRows || 0;
-};
-
-// Computers (may_tinh)
-const listComputers = async (opts = {}) => {
-  const conn = db.promise();
-  const { page, limit, filter } = opts;
-  let sql = `SELECT mt.id, mt.ma_may, mt.ma_phong as phong_id, mt.ma_cau_hinh as cau_hinh_id, mt.ma_qr, mt.dia_chi_ip, mt.dia_chi_mac, mt.trang_thai, mt.created_at,
-                      pm.ten_phong, pm.ma_phong as phong_code,
-                      ch.bo_xu_ly, ch.ram, ch.o_cung, ch.card_do_hoa, ch.he_dieu_hanh
-             FROM may_tinh mt
-             LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
-             LEFT JOIN cau_hinh_may_tinh ch ON mt.ma_cau_hinh = ch.id
-             WHERE 1=1`;
-  const params = [];
-  if (filter) { sql += ' AND (mt.ma_may LIKE ? OR pm.ten_phong LIKE ?)'; params.push(`%${filter}%`, `%${filter}%`); }
-  sql += ' ORDER BY mt.created_at DESC';
-  if (limit && Number(limit) > 0) {
-    const l = Number(limit);
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const offset = (p - 1) * l;
-    sql += ' LIMIT ? OFFSET ?'; params.push(l, offset);
-  }
-  const [rows] = await conn.query(sql, params);
-  return rows;
+// ======================= MÁY TÍNH =======================
+const getComputers = async () => {
+    const sql = `
+        SELECT mt.*, pm.ten_phong 
+        FROM may_tinh mt 
+        LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
+        ORDER BY mt.id DESC
+    `;
+    const [rows] = await db.promise().query(sql);
+    return rows;
 };
 
 const getComputerById = async (id) => {
-  const [rows] = await db.promise().query('SELECT * FROM may_tinh WHERE id = ?', [id]);
-  return rows[0] || null;
+    const [rows] = await db.promise().query(
+        `SELECT mt.*, pm.ten_phong 
+         FROM may_tinh mt 
+         LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
+         WHERE mt.id = ?`,
+        [id]
+    );
+    return rows[0] || null;
 };
 
 const createComputer = async (data) => {
-  const conn = db.promise();
-  const ma_phong = data.phong_id || data.phong_may_id || data.ma_phong || data.ma_phong_id || null;
-  const ma_cau_hinh = data.cau_hinh_id || data.ma_cau_hinh || null;
-  const { ma_may, ma_qr = null, dia_chi_ip = null, dia_chi_mac = null, trang_thai = 'active', ghi_chu = null } = data;
-  const sql = `INSERT INTO may_tinh (ma_phong, ma_cau_hinh, ma_may, ma_qr, dia_chi_ip, dia_chi_mac, trang_thai, ghi_chu, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
-  const [result] = await conn.query(sql, [ma_phong, ma_cau_hinh, ma_may, ma_qr, dia_chi_ip, dia_chi_mac, trang_thai, ghi_chu]);
-  const insertId = result.insertId || null;
-  if (insertId) return getComputerById(insertId);
-  return null;
+    const { 
+        ma_phong, ma_may, ten_may, vi_tri, ma_qr, 
+        bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh, ban_phim, chuot, 
+        hdd, ssd, trang_thai, ghi_chu 
+    } = data;
+    const sql = `
+        INSERT INTO may_tinh (
+            ma_phong, ma_may, ten_may, vi_tri, ma_qr,
+            bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh, ban_phim, chuot,
+            hdd, ssd, trang_thai, ghi_chu, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`
+    ;
+    const [result] = await db.promise().query(sql, [
+        ma_phong || null, ma_may, ten_may || null, vi_tri || null, ma_qr || null,
+        bo_xu_ly || null, ram || null, card_do_hoa || null, bo_mach_chu || null, man_hinh || null, ban_phim || null, chuot || null,
+        hdd || null, ssd || null, trang_thai || 'active', ghi_chu || null
+    ]);
+    return {
+        id: result.insertId,
+        ma_phong: ma_phong || null,
+        ma_may,
+        ten_may: ten_may || null,
+        vi_tri: vi_tri || null,
+        ma_qr: ma_qr || null,
+        bo_xu_ly: bo_xu_ly || null,
+        ram: ram || null,
+        card_do_hoa: card_do_hoa || null,
+        bo_mach_chu: bo_mach_chu || null,
+        man_hinh: man_hinh || null,
+        ban_phim: ban_phim || null,
+        chuot: chuot || null,
+        hdd: hdd || null,
+        ssd: ssd || null,
+        trang_thai: trang_thai || 'active',
+        ghi_chu: ghi_chu || null
+    };
 };
 
 const updateComputer = async (id, data) => {
-  const conn = db.promise();
-  const sets = [];
-  const params = [];
-  if (data.ma_may !== undefined) { sets.push('ma_may = ?'); params.push(data.ma_may); }
-  if (data.ma_phong !== undefined) { sets.push('ma_phong = ?'); params.push(data.ma_phong); }
-  if (data.ma_cau_hinh !== undefined) { sets.push('ma_cau_hinh = ?'); params.push(data.ma_cau_hinh); }
-  if (data.dia_chi_ip !== undefined) { sets.push('dia_chi_ip = ?'); params.push(data.dia_chi_ip); }
-  if (data.dia_chi_mac !== undefined) { sets.push('dia_chi_mac = ?'); params.push(data.dia_chi_mac); }
-  if (data.trang_thai !== undefined) { sets.push('trang_thai = ?'); params.push(data.trang_thai); }
-  if (data.ghi_chu !== undefined) { sets.push('ghi_chu = ?'); params.push(data.ghi_chu); }
-  if (sets.length === 0) return 0;
-  params.push(id);
-  const sql = `UPDATE may_tinh SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`;
-  const [result] = await conn.query(sql, params);
-  return result.affectedRows || 0;
+    // 1. Lấy dữ liệu cũ để tránh ghi đè mất (vd: mất ma_qr, vi_tri)
+    const [existingRows] = await db.promise().query('SELECT * FROM may_tinh WHERE id = ?', [id]);
+    if (existingRows.length === 0) return 0; // Không tìm thấy máy
+    const old = existingRows[0];
+
+    // 2. Gán giá trị mới. Nếu Frontend gửi thiếu thì giữ nguyên dữ liệu Cũ
+    const ma_phong = data.ma_phong !== undefined ? data.ma_phong : old.ma_phong;
+    const ma_may = data.ma_may !== undefined ? data.ma_may : old.ma_may;
+    const ten_may = data.ten_may !== undefined ? data.ten_may : old.ten_may;
+    const vi_tri = data.vi_tri !== undefined ? data.vi_tri : old.vi_tri;
+    const ma_qr = data.ma_qr !== undefined ? data.ma_qr : old.ma_qr;
+    const bo_xu_ly = data.bo_xu_ly !== undefined ? data.bo_xu_ly : old.bo_xu_ly;
+    const ram = data.ram !== undefined ? data.ram : old.ram;
+    const card_do_hoa = data.card_do_hoa !== undefined ? data.card_do_hoa : old.card_do_hoa;
+    const bo_mach_chu = data.bo_mach_chu !== undefined ? data.bo_mach_chu : old.bo_mach_chu;
+    const man_hinh = data.man_hinh !== undefined ? data.man_hinh : old.man_hinh;
+    const ban_phim = data.ban_phim !== undefined ? data.ban_phim : old.ban_phim;
+    const chuot = data.chuot !== undefined ? data.chuot : old.chuot;
+    const hdd = data.hdd !== undefined ? data.hdd : old.hdd;
+    const ssd = data.ssd !== undefined ? data.ssd : old.ssd;
+    const trang_thai = data.trang_thai !== undefined ? data.trang_thai : old.trang_thai;
+    const ghi_chu = data.ghi_chu !== undefined ? data.ghi_chu : old.ghi_chu;
+
+    const sql = `
+        UPDATE may_tinh SET 
+            ma_phong=?, ma_may=?, ten_may=?, vi_tri=?, ma_qr=?, 
+            bo_xu_ly=?, ram=?, card_do_hoa=?, bo_mach_chu=?, man_hinh=?, ban_phim=?, chuot=?, 
+            hdd=?, ssd=?, trang_thai=?, ghi_chu=?, updated_at=NOW()
+        WHERE id=?
+    `;
+    
+    await db.promise().query(sql, [
+        ma_phong, ma_may, ten_may, vi_tri, ma_qr,
+        bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh, ban_phim, chuot,
+        hdd, ssd, trang_thai, ghi_chu, id
+    ]);
+    
+    // Luôn trả về 1 để vượt qua vòng kiểm tra `affectedRows === 0` (404) ở Controller
+    // Đảm bảo bấm "Lưu" mà không thay đổi gì vẫn tính là Thành Công!
+    return 1; 
 };
+
 
 const deleteComputer = async (id) => {
-  const [result] = await db.promise().query('DELETE FROM may_tinh WHERE id = ?', [id]);
-  return result.affectedRows || 0;
+    const [result] = await db.promise().query('DELETE FROM may_tinh WHERE id=?', [id]);
+    return result.affectedRows || 0;
 };
 
-// ==========================================
-// IMPORT RECEIPT (PHIẾU NHẬP MÁY) 
-// ==========================================
-
-// 1. Lấy danh sách phiếu nhập
-const listImportReceipts = async () => {
-  const sql = `
-    SELECT pn.id, pn.ma_phieu_nhap, pn.ngay_nhap, pn.tong_so_luong, pn.ghi_chu, pm.ten_phong
-    FROM phieu_nhap_may pn
-    LEFT JOIN phong_may pm ON pn.ma_phong = pm.id
-    ORDER BY pn.created_at DESC
-  `;
-  const [rows] = await db.promise().query(sql);
-  return rows;
+// ======================= PHÒNG MÁY =======================
+const listRooms = async () => {
+    const [rows] = await db.promise().query('SELECT * FROM phong_may ORDER BY id DESC');
+    return rows;
 };
 
-// 2. Tạo phiếu nhập mới (Transaction)
-const createImportReceipt = async (data) => {
-  const conn = await db.promise().getConnection();
-  try {
-    await conn.beginTransaction();
+const getRoomById = async (id) => {
+    const [rows] = await db.promise().query('SELECT * FROM phong_may WHERE id=?', [id]);
+    return rows[0] || null;
+};
 
-    const { 
-      ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, nha_cung_cap, ghi_chu_phieu,
-      cpu_brand, cpu_detail, ram_brand, ram_capacity, 
-      gpu_type, gpu_detail, mainboard, monitor, keyboard, mouse, 
-      storage_type, storage_capacity, os 
-    } = data;
-    
-    // Ghép dữ liệu chuẩn hóa
-    const boXuLy = `${cpu_brand} ${cpu_detail || ''}`.trim();
-    const ram = `${ram_brand || ''} ${ram_capacity}`.trim();
-    const oCung = `${storage_type} ${storage_capacity}`;
-    const cardDoHoa = gpu_type === 'Card Rời' ? gpu_detail : 'Card Onboard';
-    const heDieuHanh = os;
-    const manHinh = monitor || 'Không có';
-    
-    const ghiChuCauHinh = `Bo mạch chủ: ${mainboard || 'Không rõ'} | Bàn phím: ${keyboard || 'Không'} | Chuột: ${mouse || 'Không'}`;
-
-    let maCauHinh = null;
-    const cauHinhSoBo = `CPU: ${boXuLy} | RAM: ${ram} | VGA: ${cardDoHoa} | HDD/SSD: ${oCung}`;
-    const ghiChuFinal = `Nhà cung cấp: ${nha_cung_cap || 'Không'}\nCấu hình: ${cauHinhSoBo}\nGhi chú thêm: ${ghi_chu_phieu || ''}`;
-
-    // 1. Lưu cấu hình chung
-    if (tong_so_luong > 0) {
-      const [configResult] = await conn.query(
-        `INSERT INTO cau_hinh_may_tinh (bo_xu_ly, ram, o_cung, card_do_hoa, man_hinh, he_dieu_hanh, ghi_chu, created_at, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [boXuLy, ram, oCung, cardDoHoa, manHinh, heDieuHanh, ghiChuCauHinh]
-      );
-      maCauHinh = configResult.insertId;
-    }
-
-    // 2. Insert Phiếu Nhập
-    await conn.query(
-      `INSERT INTO phieu_nhap_may 
-      (ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, cau_hinh_so_bo, trang_thai, ghi_chu, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, ?, 'draft', ?, NOW(), NOW())`,
-      [ma_phieu_nhap, ma_phong, ngay_nhap, tong_so_luong, cauHinhSoBo, ghiChuFinal]
+const createRoom = async (data) => {
+    const { ma_phong, ten_phong, suc_chua, mo_ta, trang_thai } = data;
+    const [result] = await db.promise().query(
+        `INSERT INTO phong_may (ma_phong, ten_phong, suc_chua, mo_ta, trang_thai, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+        [ma_phong, ten_phong, suc_chua || 0, mo_ta || null, trang_thai || 'active']
     );
-
-    // 3. Sinh tự động máy tính
-    if (tong_so_luong > 0 && maCauHinh) {
-      const [existingComputers] = await conn.query(
-        'SELECT ten_may FROM may_tinh WHERE ma_phong = ?', 
-        [ma_phong]
-      );
-      
-      let maxStt = 0;
-      for (const comp of existingComputers) {
-        const match = comp.ten_may.match(/\d+$/);
-        if (match) {
-          const num = parseInt(match[0], 10);
-          if (num > maxStt) maxStt = num;
-        }
-      }
-
-      const maMayPrefix = ma_phieu_nhap.replace('PN-', 'PC-');
-      let insertValues = [];
-      
-      for (let i = 1; i <= tong_so_luong; i++) {
-        const sttTenMay = (maxStt + i).toString().padStart(3, '0'); 
-        const tenMay = `Máy ${sttTenMay}`;
-        
-        const sttMaMay = i.toString().padStart(3, '0');
-        const maMay = `${maMayPrefix}-${sttMaMay}`;
-        
-        insertValues.push([ma_phong, maCauHinh, maMay, tenMay, 'active', new Date(), new Date()]);
-      }
-
-      await conn.query(
-        `INSERT INTO may_tinh (ma_phong, ma_cau_hinh, ma_may, ten_may, trang_thai, created_at, updated_at) VALUES ?`,
-        [insertValues]
-      );
-    }
-
-    await conn.commit();
-    return { success: true, message: 'Tạo phiếu nhập và cấu hình thành công!' };
-
-  } catch (error) {
-    await conn.rollback();
-    throw new Error('Lỗi Transaction: ' + error.message);
-  } finally {
-    conn.release();
-  }
+    return {
+        id: result.insertId,
+        ma_phong,
+        ten_phong,
+        suc_chua: suc_chua || 0,
+        mo_ta: mo_ta || null,
+        trang_thai: trang_thai || 'active'
+    };
 };
+
+const updateRoom = async (id, data) => {
+    const { ma_phong, ten_phong, suc_chua, mo_ta, trang_thai } = data;
+    const [result] = await db.promise().query(
+        `UPDATE phong_may SET ma_phong=?, ten_phong=?, suc_chua=?, mo_ta=?, trang_thai=?, updated_at=NOW() WHERE id=?`,
+        [ma_phong, ten_phong, suc_chua || 0, mo_ta || null, trang_thai || 'active', id]
+    );
+    return result.affectedRows || 0;
+};
+
+const deleteRoom = async (id) => {
+    const [result] = await db.promise().query('DELETE FROM phong_may WHERE id=?', [id]);
+    return result.affectedRows || 0;
+};
+
+// ======================= PHIẾU NHẬP MÁY =======================
+const listImportReceipts = async () => {
+    const [rows] = await db.promise().query('SELECT * FROM phieu_nhap_may ORDER BY id DESC');
+    return rows;
+};
+
+const createImportReceipt = async (data) => {
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // MAP DỮ LIỆU CHÍNH XÁC VỚI CODE FLUTTER MỚI NHẤT
+        const {
+            ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu_phieu,
+            ma_phong, bo_xu_ly, ram, card_do_hoa, bo_mach_chu,
+            man_hinh, ban_phim, chuot, hdd, ssd
+        } = data;
+
+        // BƯỚC 1: LƯU PHIẾU NHẬP MÁY
+        const [receiptResult] = await connection.query(
+            `INSERT INTO phieu_nhap_may (ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+            [ma_phieu_nhap || null, ngay_nhap || null, so_luong || 0, nha_cung_cap || null, ghi_chu_phieu || null]
+        );
+        const idPhieuNhap = receiptResult.insertId;
+
+        // BƯỚC 2: CHẠY VÒNG LẶP THEO SỐ LƯỢNG MÁY
+        if (so_luong > 0) {
+            const prefix = ma_phieu_nhap ? ma_phieu_nhap.replace(/^PN-/, 'MT-') : `MT-${Date.now()}`;
+
+            for (let i = 1; i <= so_luong; i += 1) {
+                const index = i.toString().padStart(3, '0');
+                const ma_may = `${prefix}-${index}`;
+                const ten_may = `Máy ${index}`;
+                const ma_qr = `QR-${ma_may}`;
+
+                // 2.1: Insert Từng Máy Vào Kho
+                const [mayResult] = await connection.query(
+                    `INSERT INTO may_tinh
+                     (ma_phong, ma_may, ten_may, vi_tri, ma_qr, bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh,
+                      ban_phim, chuot, hdd, ssd, trang_thai, ghi_chu, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                    [
+                        ma_phong || null,
+                        ma_may,
+                        ten_may,
+                        null, // vi_tri
+                        ma_qr,
+                        bo_xu_ly || null,
+                        ram || null,
+                        card_do_hoa || null,
+                        bo_mach_chu || null,
+                        man_hinh || null,
+                        ban_phim || null,
+                        chuot || null,
+                        hdd || null,
+                        ssd || null,
+                        'active',
+                        null // ghi_chu
+                    ]
+                );
+
+                // 2.2: Insert Dữ Liệu Vào Bảng Chi Tiết Phiếu Nhập Máy
+                await connection.query(
+                    `INSERT INTO chi_tiet_phieu_nhap_may (ma_phieu_nhap, ma_may_tinh, ghi_chu)
+                     VALUES (?, ?, ?)`,
+                    [idPhieuNhap, mayResult.insertId, `Được sinh tự động từ mã phiếu ${ma_phieu_nhap}`]
+                );
+            }
+        }
+
+        await connection.commit();
+        return { success: true, message: 'Tạo phiếu nhập, thêm máy và lưu chi tiết thành công!' };
+    } catch (error) {
+        await connection.rollback(); // Hủy bỏ hoàn toàn nếu có lỗi
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
+
+const transferMachines = async (data) => {
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        let mayTinhIds = data.may_tinh_ids;
+        if (typeof mayTinhIds === 'string') {
+            mayTinhIds = mayTinhIds ? JSON.parse(mayTinhIds) : [];
+        }
+        if (!Array.isArray(mayTinhIds) || mayTinhIds.length === 0) {
+            throw new Error('Danh sách máy tính không hợp lệ');
+        }
+
+        const {
+            ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu
+        } = data;
+        
+        await connection.query(
+            `INSERT INTO lich_su_dieu_chuyen_may
+             (may_tinh_ids, ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [JSON.stringify(mayTinhIds), ma_phong_cu || null, ma_phong_moi || null, ma_nguoi_dieu_chuyen || null, ly_do || null, ghi_chu || null]
+        );
+        
+        await connection.query(
+            `UPDATE may_tinh SET ma_phong = ? WHERE id IN (?)`,
+            [ma_phong_moi || null, mayTinhIds]
+        );
+        
+        await connection.commit();
+        return { success: true, message: 'Chuyển máy thành công' };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
+
+const getTransferHistory = async () => {
+    const [rows] = await db.promise().query('SELECT * FROM lich_su_dieu_chuyen_may ORDER BY id DESC');
+    return rows;
+};
+
+// ======================= THIẾT BỊ KHÁC =======================
+const getEquipments = async () => {
+    const sql = `SELECT tb.*, pm.ten_phong FROM thiet_bi tb LEFT JOIN phong_may pm ON tb.ma_phong = pm.id ORDER BY tb.id DESC`;
+    const [rows] = await db.promise().query(sql); return rows;
+};
+const createEquipment = async (data) => {
+    const { ma_phong, ten_thiet_bi, so_luong, don_vi, trang_thai, ghi_chu } = data;
+    await db.promise().query(`INSERT INTO thiet_bi (ma_phong, ten_thiet_bi, so_luong, don_vi, trang_thai, ghi_chu, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`, [ma_phong || null, ten_thiet_bi, so_luong || 0, don_vi || null, trang_thai || 'active', ghi_chu || null]);
+};
+const updateEquipment = async (id, data) => {
+    const { ma_phong, ten_thiet_bi, so_luong, don_vi, trang_thai, ghi_chu } = data;
+    await db.promise().query(`UPDATE thiet_bi SET ma_phong=?, ten_thiet_bi=?, so_luong=?, don_vi=?, trang_thai=?, ghi_chu=?, updated_at=NOW() WHERE id=?`, [ma_phong || null, ten_thiet_bi, so_luong || 0, don_vi || null, trang_thai, ghi_chu || null, id]);
+};
+const deleteEquipment = async (id) => { await db.promise().query('DELETE FROM thiet_bi WHERE id=?', [id]); };
 
 module.exports = {
-  // rooms
-  listRooms, getRoomById, createRoom, updateRoom, deleteRoom,
-  // configs
-  listConfigs, getConfigById, createConfig, updateConfig, deleteConfig,
-  // computers
-  listComputers, getComputerById, createComputer, updateComputer, deleteComputer,
-  // Import receipt
-  listImportReceipts, createImportReceipt
+    listRooms,
+    getRoomById,
+    createRoom,
+    updateRoom,
+    deleteRoom,
+    listComputers: getComputers,
+    getComputerById,
+    createComputer,
+    updateComputer,
+    deleteComputer,
+    listImportReceipts,
+    createImportReceipt,
+    transferMachines,
+    getTransferHistory,
+    getEquipments,
+    createEquipment,
+    updateEquipment,
+    deleteEquipment
 };

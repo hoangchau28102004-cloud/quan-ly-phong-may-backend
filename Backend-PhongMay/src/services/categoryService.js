@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 const CategoryService = {
-  // 1. Lớp học (Giữ nguyên)
+  // 1. Lớp học
   getLopHoc: async () => {
     const [rows] = await db.promise().query('SELECT * FROM lop_hoc');
     return rows;
@@ -24,7 +24,7 @@ const CategoryService = {
     return result.affectedRows;
   },
 
-  // 2. Thiết bị (Giữ nguyên)
+  // 2. Thiết bị
   getThietBi: async () => {
     const [rows] = await db.promise().query('SELECT * FROM thiet_bi');
     return rows;
@@ -35,17 +35,9 @@ const CategoryService = {
     return result.insertId;
   },
 
-  // 3. Môn học (Giữ nguyên)
-  getMonHoc: async () => {
-    const [rows] = await db.promise().query('SELECT * FROM mon_hoc');
-    return rows;
-  },
-  addMonHoc: async (ten_mon) => {
-    const [result] = await db.promise().query('INSERT INTO mon_hoc (ten_mon) VALUES (?)', [ten_mon]);
-    return result.insertId;
-  },
+  
 
-  // 4. QUẢN LÝ NĂM HỌC (THAY THẾ CA HỌC/CẤU TRÚC CŨ)
+  // 4. Quản lý năm học
   getNamHoc: async () => {
     const [rows] = await db.promise().query('SELECT * FROM nam_hoc ORDER BY id DESC');
     return rows;
@@ -56,7 +48,7 @@ const CategoryService = {
     return result.insertId;
   },
 
-  // 5. QUẢN LÝ TUẦN HỌC (THAY THẾ CẤU TRÚC CŨ)
+  // 5. Quản lý tuần học
   getTuan: async (ma_nam_hoc) => {
     const sql = 'SELECT * FROM tuan WHERE ma_nam_hoc = ? ORDER BY so_tuan ASC';
     const [rows] = await db.promise().query(sql, [ma_nam_hoc]);
@@ -64,8 +56,7 @@ const CategoryService = {
   },
   addTuan: async (data) => {
     const { ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan } = data;
-    const sql = `INSERT INTO tuan (ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan, created_at)
-                 VALUES (?, ?, ?, ?, NOW())`;
+    const sql = `INSERT INTO tuan (ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan, created_at) VALUES (?, ?, ?, ?, NOW())`;
     const [result] = await db.promise().query(sql, [ma_nam_hoc, so_tuan, ngay_bat_dau_tuan, ngay_ket_thuc_tuan]);
     return result.insertId;
   },
