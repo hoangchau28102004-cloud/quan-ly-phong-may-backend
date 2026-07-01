@@ -39,12 +39,12 @@ const RoomController = {
       next(error);
     }
   },
-  // --- HÀM MỚI ĐỂ XỬ LÝ QUÉT MÃ QR ---
+
   scanMachine: async (req, res, next) => {
     try {
       const { serial } = req.params; // Nhận mã QR/Serial từ URL
       const machine = await roomService.getMachineBySerial(serial);
-      console.log("👉 ĐÃ NHẬN YÊU CẦU QUÉT MÃ TỪ FLUTTER. MÃ LÀ:", serial);
+      console.log('👉 ĐÃ NHẬN YÊU CẦU QUÉT MÃ TỪ FLUTTER. MÃ LÀ:', serial);
 
       if (!machine) {
         return res.status(404).json({ success: false, message: 'Không tìm thấy máy tính với mã này!' });
@@ -54,6 +54,20 @@ const RoomController = {
         success: true,
         data: machine
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getAvailableRooms: async (req, res, next) => {
+    try {
+      const { date, start, end } = req.query;
+      if (!date || !start || !end) {
+        return res.status(400).json({ success: false, message: 'Thiếu tham số ngày hoặc tiết' });
+      }
+
+      const rooms = await roomService.getAvailableRooms(date, Number(start), Number(end));
+      res.status(200).json({ success: true, data: rooms });
     } catch (error) {
       next(error);
     }

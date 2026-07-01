@@ -12,4 +12,15 @@ router.delete('/lich-phong/:id', controller.deleteSchedule);
 router.get('/dat-phong', controller.getBookingRequests);
 router.put('/dat-phong/:id', controller.updateBookingStatus);
 
+// API mới
+router.get('/list', controller.getScheduleList);
+router.get('/', controller.getBookingsList);
+router.post('/book', controller.bookRoom);
+
+// Hủy phiếu chưa duyệt
+router.delete('/:id', controller.deleteBooking);
+
+// Duyệt phiếu (Admin)
+router.patch('/:id/status', controller.updateBooking);
+
 module.exports = router;
