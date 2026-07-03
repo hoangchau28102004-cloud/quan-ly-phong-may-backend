@@ -12,6 +12,7 @@ const assetsRoutes = require('./routes/assetsRoutes');
 const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const academicRoutes = require('./routes/academicRoutes'); 
 const borrowReturnRoutes = require('./routes/borrowReturnRoutes');
+const importRoutes = require('./routes/importRoutes');
 const issueRoutes = require('./routes/issueRoutes');
 
 const app = express();
@@ -25,7 +26,7 @@ app.use(express.json());
 
 // ================= Gắn Routes vào hệ thống =================
 app.use('/api', authRoutes);
-app.use('/api', scheduleRoutes); // <-- Đã sửa thành '/api' để khớp với Flutter gọi '/lich-phong'
+app.use('/api/schedule', scheduleRoutes); // Mount schedule routes under /api/schedule
 app.use('/api', categoryRoutes); 
 app.use('/api', roomRoutes); 
 app.use('/api/phong-may', roomRoutes);
@@ -34,6 +35,7 @@ app.use('/api', assetsRoutes);
 app.use('/api', maintenanceRoutes);
 app.use('/api', academicRoutes);
 app.use('/api', borrowReturnRoutes);
+app.use('/api', importRoutes);
 
 // --- THÊM DÒNG NÀY: Gắn API báo sự cố vào hệ thống ---
 app.use('/api/issues', issueRoutes);

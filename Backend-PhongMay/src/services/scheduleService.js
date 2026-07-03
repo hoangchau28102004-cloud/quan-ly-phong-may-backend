@@ -27,49 +27,57 @@ const getSchedules = async () => {
 };
 
 const createSchedule = async (data) => {
-    console.log('🚀 NHẬN DỮ LIỆU TỪ FLUTTER THÊM LỊCH THỦ CÔNG:', data);
+    // 1. IN RA ĐỂ KHÁM NGHIỆM TỬ THI XEM FLUTTER GỬI GÌ
+    console.log('🚀 DỮ LIỆU TỪ FLUTTER GỬI LÊN:', data);
 
-    let ma_tuan = null;
-    if (data.ngay_hoc_cu_the) {
-        try {
-            const sqlFindTuan = `
-                SELECT id FROM tuan 
-                WHERE ? BETWEEN ngay_bat_dau AND ngay_ket_thuc 
-                LIMIT 1
-            `;
-            const [tuanRows] = await db.promise().query(sqlFindTuan, [data.ngay_hoc_cu_the]);
+    // 2. ÉP CUNG DỮ LIỆU (KHÔNG CHO PHÉP NULL HOẶC UNDEFINED Ở CÁC TRƯỜNG QUAN TRỌNG)
+    if (!data.ma_phong) throw new Error('Flutter gửi thiếu biến "ma_phong" (ID phòng máy)!');
+    if (!data.ngay_hoc_cu_the) throw new Error('Flutter gửi thiếu biến "ngay_hoc_cu_the" (Format YYYY-MM-DD)!');
+    if (!data.so_tiet_bat_dau) throw new Error('Flutter gửi thiếu biến "so_tiet_bat_dau"!');
+    if (!data.so_tiet_ket_thuc) throw new Error('Flutter gửi thiếu biến "so_tiet_ket_thuc"!');
+    if (!data.thu_trong_tuan) throw new Error('Flutter gửi thiếu biến "thu_trong_tuan" (VD: Thứ 2)!');
 
-            if (tuanRows.length > 0) {
-                ma_tuan = tuanRows[0].id;
-            } else {
-                throw new Error('Không tìm thấy tuần khớp với ngày này');
-            }
-        } catch (error) {
-            const [backupTuan] = await db.promise().query(`SELECT id FROM tuan ORDER BY id DESC LIMIT 1`);
-            if (backupTuan.length > 0) {
-                ma_tuan = backupTuan[0].id;
-            }
+    let ma_tuan = data.ma_tuan || null;
+
+    // 3. NẾU KHÔNG TRUYỀN MÃ TUẦN, BACKEND SẼ TỰ DÒ TÌM TRONG DB
+    if (!ma_tuan && data.ngay_hoc_cu_the) {
+        const sqlFindTuan = `
+            SELECT id FROM tuan 
+            WHERE ? BETWEEN ngay_bat_dau AND ngay_ket_thuc 
+            LIMIT 1
+        `;
+        const [tuanRows] = await db.promise().query(sqlFindTuan, [data.ngay_hoc_cu_the]);
+
+        if (tuanRows.length > 0) {
+            ma_tuan = tuanRows[0].id;
+        } else {
+            // Lỗi trí mạng: Ngày gửi lên không nằm trong năm học nào cả!
+            throw new Error(`Ngày ${data.ngay_hoc_cu_the} không thuộc về bất kỳ Tuần nào trong CSDL!`);
         }
     }
 
+    // 4. CHÈN VÀO DATABASE (CÓ ĐỦ BỘ GIÁP BẢO VỆ)
     const sql = `
         INSERT INTO lich_su_dung_phong_may 
-        (ma_phong, ma_lop_hoc_phan, ngay_hoc_cu_the, so_tiet_bat_dau, so_tiet_ket_thuc, loai_lich, thu_trong_tuan, ma_tuan) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (ma_phong, ma_lop_hoc_phan, ma_giang_vien, ngay_hoc_cu_the, so_tiet_bat_dau, so_tiet_ket_thuc, loai_lich, thu_trong_tuan, ma_tuan, trang_thai) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
     `;
+    
+    // Ép kiểu để DB không bị sốc
     const [result] = await db.promise().query(sql, [
-        data.ma_phong,
-        data.ma_lop_hoc_phan,
+        parseInt(data.ma_phong),
+        data.ma_lop_hoc_phan ? parseInt(data.ma_lop_hoc_phan) : null,
+        data.ma_giang_vien ? parseInt(data.ma_giang_vien) : null, // Thêm gv để biết ai dạy
         data.ngay_hoc_cu_the,
-        data.so_tiet_bat_dau,
-        data.so_tiet_ket_thuc,
-        data.loai_lich,
+        parseInt(data.so_tiet_bat_dau),
+        parseInt(data.so_tiet_ket_thuc),
+        data.loai_lich || 'ChinhThuc',
         data.thu_trong_tuan,
         ma_tuan
     ]);
+    
     return result.insertId;
 };
-
 const updateSchedule = async (id, data) => {
     const sql = `
         UPDATE lich_su_dung_phong_may 

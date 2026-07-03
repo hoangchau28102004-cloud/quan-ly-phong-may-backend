@@ -42,33 +42,19 @@ const createComputer = async (data) => {
         hdd || null, ssd || null, trang_thai || 'active', ghi_chu || null
     ]);
     return {
-        id: result.insertId,
-        ma_phong: ma_phong || null,
-        ma_may,
-        ten_may: ten_may || null,
-        vi_tri: vi_tri || null,
-        ma_qr: ma_qr || null,
-        bo_xu_ly: bo_xu_ly || null,
-        ram: ram || null,
-        card_do_hoa: card_do_hoa || null,
-        bo_mach_chu: bo_mach_chu || null,
-        man_hinh: man_hinh || null,
-        ban_phim: ban_phim || null,
-        chuot: chuot || null,
-        hdd: hdd || null,
-        ssd: ssd || null,
-        trang_thai: trang_thai || 'active',
-        ghi_chu: ghi_chu || null
+        id: result.insertId, ma_phong: ma_phong || null, ma_may, ten_may: ten_may || null,
+        vi_tri: vi_tri || null, ma_qr: ma_qr || null, bo_xu_ly: bo_xu_ly || null, ram: ram || null,
+        card_do_hoa: card_do_hoa || null, bo_mach_chu: bo_mach_chu || null, man_hinh: man_hinh || null,
+        ban_phim: ban_phim || null, chuot: chuot || null, hdd: hdd || null, ssd: ssd || null,
+        trang_thai: trang_thai || 'active', ghi_chu: ghi_chu || null
     };
 };
 
 const updateComputer = async (id, data) => {
-    // 1. Lấy dữ liệu cũ để tránh ghi đè mất (vd: mất ma_qr, vi_tri)
     const [existingRows] = await db.promise().query('SELECT * FROM may_tinh WHERE id = ?', [id]);
-    if (existingRows.length === 0) return 0; // Không tìm thấy máy
+    if (existingRows.length === 0) return 0;
     const old = existingRows[0];
 
-    // 2. Gán giá trị mới. Nếu Frontend gửi thiếu thì giữ nguyên dữ liệu Cũ
     const ma_phong = data.ma_phong !== undefined ? data.ma_phong : old.ma_phong;
     const ma_may = data.ma_may !== undefined ? data.ma_may : old.ma_may;
     const ten_may = data.ten_may !== undefined ? data.ten_may : old.ten_may;
@@ -95,20 +81,35 @@ const updateComputer = async (id, data) => {
     `;
     
     await db.promise().query(sql, [
-        ma_phong, ma_may, ten_may, vi_tri, ma_qr,
-        bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh, ban_phim, chuot,
-        hdd, ssd, trang_thai, ghi_chu, id
+        ma_phong, ma_may, ten_may, vi_tri, ma_qr, bo_xu_ly, ram, card_do_hoa, bo_mach_chu, 
+        man_hinh, ban_phim, chuot, hdd, ssd, trang_thai, ghi_chu, id
     ]);
-    
-    // Luôn trả về 1 để vượt qua vòng kiểm tra `affectedRows === 0` (404) ở Controller
-    // Đảm bảo bấm "Lưu" mà không thay đổi gì vẫn tính là Thành Công!
     return 1; 
 };
-
-
+// ============================================================================
+// 1. XÓA MÁY TÍNH (XÓA CỨNG - NHỔ SẠCH KHÓA NGOẠI TRƯỚC KHI TRẢM)
+// ============================================================================
 const deleteComputer = async (id) => {
-    const [result] = await db.promise().query('DELETE FROM may_tinh WHERE id=?', [id]);
-    return result.affectedRows || 0;
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Diệt cỏ tận gốc ở các bảng chi tiết để không bị lỗi Foreign Key Constraint
+        await connection.query('DELETE FROM chi_tiet_phieu_nhap_may WHERE ma_may_tinh = ?', [id]);
+        await connection.query('DELETE FROM chi_tiet_phieu_muon_may WHERE ma_may_tinh = ?', [id]);
+        await connection.query('DELETE FROM chi_tiet_phieu_tra_may WHERE ma_may_tinh = ?', [id]);
+
+        // Trảm máy tính
+        const [result] = await connection.query('DELETE FROM may_tinh WHERE id = ?', [id]);
+
+        await connection.commit();
+        return result.affectedRows || 0;
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 };
 
 // ======================= PHÒNG MÁY =======================
@@ -128,14 +129,7 @@ const createRoom = async (data) => {
         `INSERT INTO phong_may (ma_phong, ten_phong, suc_chua, mo_ta, trang_thai, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
         [ma_phong, ten_phong, suc_chua || 0, mo_ta || null, trang_thai || 'active']
     );
-    return {
-        id: result.insertId,
-        ma_phong,
-        ten_phong,
-        suc_chua: suc_chua || 0,
-        mo_ta: mo_ta || null,
-        trang_thai: trang_thai || 'active'
-    };
+    return { id: result.insertId, ma_phong, ten_phong, suc_chua: suc_chua || 0, mo_ta: mo_ta || null, trang_thai: trang_thai || 'active' };
 };
 
 const updateRoom = async (id, data) => {
@@ -158,75 +152,85 @@ const listImportReceipts = async () => {
     return rows;
 };
 
+// ============================================================================
+// 1. TẠO PHIẾU NHẬP MÁY (CHẶN ĐỨNG LỖI DB KHI DỮ LIỆU BỊ NULL)
+// ============================================================================
 const createImportReceipt = async (data) => {
     const connection = await db.promise().getConnection();
+
     try {
         await connection.beginTransaction();
 
-        // MAP DỮ LIỆU CHÍNH XÁC VỚI CODE FLUTTER MỚI NHẤT
-        const {
-            ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu_phieu,
-            ma_phong, bo_xu_ly, ram, card_do_hoa, bo_mach_chu,
-            man_hinh, ban_phim, chuot, hdd, ssd
-        } = data;
+        // 🚨 NẾU THIẾU MÃ PHÒNG (NOT NULL TRONG DB) LÀ QUĂNG LỖI NGAY TẠI ĐÂY
+        if (!data.ma_phong) {
+            throw new Error("Lỗi: Ứng dụng Flutter chưa truyền lên [ma_phong]. Không thể lưu vào Database!");
+        }
 
-        // BƯỚC 1: LƯU PHIẾU NHẬP MÁY
+        // Tạo sẵn các biến default để Database không bị sập ER_BAD_NULL_ERROR
+        const ma_phieu_nhap = data.ma_phieu_nhap || `PN-${Date.now()}`;
+        const ngay_nhap = data.ngay_nhap || new Date().toISOString().split('T')[0];
+        const so_luong = data.so_luong || data.tong_so_luong || (data.chi_tiet_may ? data.chi_tiet_may.length : 0);
+        const nha_cung_cap = data.nha_cung_cap || 'Không xác định';
+        
+        const bo_xu_ly = data.bo_xu_ly || 'Không';
+        const ram = data.ram || 'Không';
+        const card_do_hoa = data.card_do_hoa || 'Không';
+        const bo_mach_chu = data.bo_mach_chu || 'Không';
+        const man_hinh = data.man_hinh || 'Không';
+        const ban_phim = data.ban_phim || 'Không';
+        const chuot = data.chuot || 'Không';
+        const hdd = data.hdd || 'Không';
+        const ssd = data.ssd || 'Không';
+
+        const ghiChuCauHinh = `Bo mạch chủ: ${bo_mach_chu} | Bàn phím: ${ban_phim} | Chuột: ${chuot}`;
+        const ghiChuFinal = `Nhà cung cấp: ${nha_cung_cap}\nCấu hình: ${ghiChuCauHinh}\nGhi chú thêm: ${data.ghi_chu_phieu || ''}`;
+
+        // 1. Lưu thông tin Phiếu Nhập
         const [receiptResult] = await connection.query(
             `INSERT INTO phieu_nhap_may (ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [ma_phieu_nhap || null, ngay_nhap || null, so_luong || 0, nha_cung_cap || null, ghi_chu_phieu || null]
+            [ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghiChuFinal]
         );
         const idPhieuNhap = receiptResult.insertId;
 
-        // BƯỚC 2: CHẠY VÒNG LẶP THEO SỐ LƯỢNG MÁY
-        if (so_luong > 0) {
-            const prefix = ma_phieu_nhap ? ma_phieu_nhap.replace(/^PN-/, 'MT-') : `MT-${Date.now()}`;
+        // 2. Chạy vòng lặp sinh máy
+        if (data.chi_tiet_may && data.chi_tiet_may.length > 0) {
+            const prefix = ma_phieu_nhap.replace(/^PN-/, 'MT-');
+            let currentIndex = 1;
 
-            for (let i = 1; i <= so_luong; i += 1) {
-                const index = i.toString().padStart(3, '0');
-                const ma_may = `${prefix}-${index}`;
-                const ten_may = `Máy ${index}`;
+            for (const may of data.chi_tiet_may) {
+                const sttStr = currentIndex.toString().padStart(3, '0');
+                
+                // 🚀 GÁN MÃ VÀ TÊN BẰNG NHAU ĐỂ CHỐNG LỖI DUPLICATE "MÁY 001"
+                const ma_may = `${prefix}-${sttStr}`;
+                const ten_may = ma_may; 
                 const ma_qr = `QR-${ma_may}`;
+                const trang_thai = may.trang_thai || 'active';
 
-                // 2.1: Insert Từng Máy Vào Kho
                 const [mayResult] = await connection.query(
                     `INSERT INTO may_tinh
                      (ma_phong, ma_may, ten_may, vi_tri, ma_qr, bo_xu_ly, ram, card_do_hoa, bo_mach_chu, man_hinh,
                       ban_phim, chuot, hdd, ssd, trang_thai, ghi_chu, created_at, updated_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                     [
-                        ma_phong || null,
-                        ma_may,
-                        ten_may,
-                        null, // vi_tri
-                        ma_qr,
-                        bo_xu_ly || null,
-                        ram || null,
-                        card_do_hoa || null,
-                        bo_mach_chu || null,
-                        man_hinh || null,
-                        ban_phim || null,
-                        chuot || null,
-                        hdd || null,
-                        ssd || null,
-                        'active',
-                        null // ghi_chu
+                        data.ma_phong, ma_may, ten_may, null, ma_qr, bo_xu_ly, ram, card_do_hoa,
+                        bo_mach_chu, man_hinh, ban_phim, chuot, hdd, ssd,
+                        trang_thai, ghiChuCauHinh
                     ]
                 );
 
-                // 2.2: Insert Dữ Liệu Vào Bảng Chi Tiết Phiếu Nhập Máy
                 await connection.query(
-                    `INSERT INTO chi_tiet_phieu_nhap_may (ma_phieu_nhap, ma_may_tinh, ghi_chu)
-                     VALUES (?, ?, ?)`,
+                    `INSERT INTO chi_tiet_phieu_nhap_may (ma_phieu_nhap, ma_may_tinh, ghi_chu) VALUES (?, ?, ?)`,
                     [idPhieuNhap, mayResult.insertId, `Được sinh tự động từ mã phiếu ${ma_phieu_nhap}`]
                 );
+                currentIndex++; 
             }
         }
 
         await connection.commit();
-        return { success: true, message: 'Tạo phiếu nhập, thêm máy và lưu chi tiết thành công!' };
+        return { success: true, message: 'Tạo phiếu nhập và sinh máy thành công' };
     } catch (error) {
-        await connection.rollback(); // Hủy bỏ hoàn toàn nếu có lỗi
+        await connection.rollback();
         throw error;
     } finally {
         connection.release();
@@ -246,9 +250,7 @@ const transferMachines = async (data) => {
             throw new Error('Danh sách máy tính không hợp lệ');
         }
 
-        const {
-            ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu
-        } = data;
+        const { ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu } = data;
         
         await connection.query(
             `INSERT INTO lich_su_dieu_chuyen_may
@@ -257,10 +259,7 @@ const transferMachines = async (data) => {
             [JSON.stringify(mayTinhIds), ma_phong_cu || null, ma_phong_moi || null, ma_nguoi_dieu_chuyen || null, ly_do || null, ghi_chu || null]
         );
         
-        await connection.query(
-            `UPDATE may_tinh SET ma_phong = ? WHERE id IN (?)`,
-            [ma_phong_moi || null, mayTinhIds]
-        );
+        await connection.query(`UPDATE may_tinh SET ma_phong = ? WHERE id IN (?)`, [ma_phong_moi || null, mayTinhIds]);
         
         await connection.commit();
         return { success: true, message: 'Chuyển máy thành công' };

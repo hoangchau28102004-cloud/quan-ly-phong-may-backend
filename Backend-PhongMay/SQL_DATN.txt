@@ -257,6 +257,7 @@ INSERT INTO `lop_hoc` (`id`, `ma_lop`, `nien_khoa`, `chuyen_nganh`, `ma_giang_vi
 CREATE TABLE `lop_hoc_phan` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `ma_lop_hoc_phan` varchar(255) NOT NULL,
+  `ma_lop` bigint(20) UNSIGNED DEFAULT NULL,
   `ma_mon` bigint(20) UNSIGNED NOT NULL,
   `ma_nam_hoc` bigint(20) UNSIGNED NOT NULL,
   `ma_phong` bigint(20) UNSIGNED DEFAULT NULL,
@@ -1144,7 +1145,8 @@ ALTER TABLE `lop_hoc`
 ALTER TABLE `lop_hoc_phan`
   ADD CONSTRAINT `lop_hoc_phan_ibfk_1` FOREIGN KEY (`ma_mon`) REFERENCES `mon_hoc` (`id`),
   ADD CONSTRAINT `lop_hoc_phan_ibfk_2` FOREIGN KEY (`ma_nam_hoc`) REFERENCES `nam_hoc` (`id`),
-  ADD CONSTRAINT `lop_hoc_phan_ibfk_3` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `lop_hoc_phan_ibfk_3` FOREIGN KEY (`ma_phong`) REFERENCES `phong_may` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `lop_hoc_phan_ibfk_4` FOREIGN KEY (`ma_lop`) REFERENCES `lop_hoc` (`id`) ON DELETE SET NULL;
 
 --
 -- Các ràng buộc cho bảng `may_tinh`

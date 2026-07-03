@@ -78,6 +78,13 @@ const RoomService = {
     // So sánh chéo thời gian để tìm trùng lặp
     const [rows] = await conn.query(sql, [date, end, start, date, end, start]);
     return rows;
+  },
+
+  getAllRooms: async () => {
+    const [rows] = await db.promise().query(
+      'SELECT id, ma_phong, ten_phong, suc_chua, trang_thai FROM phong_may WHERE trang_thai = "active" ORDER BY ma_phong ASC'
+    );
+    return rows;
   }
 };
 

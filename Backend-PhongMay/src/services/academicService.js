@@ -61,6 +61,7 @@ const AcademicService = {
                 mh.ten_mon, 
                 nh.ten_nam_hoc, 
                 pm.ten_phong,
+                lh.ma_lop AS ten_lop,
                 (SELECT pcgv.ma_giang_vien FROM phan_cong_giang_vien pcgv WHERE pcgv.ma_lop_hoc_phan = lhp.id LIMIT 1) as ma_giang_vien,
                 (SELECT GROUP_CONCAT(nd.ho_ten SEPARATOR ', ') 
                  FROM phan_cong_giang_vien pcgv 
@@ -72,14 +73,18 @@ const AcademicService = {
             LEFT JOIN mon_hoc mh ON lhp.ma_mon = mh.id 
             LEFT JOIN nam_hoc nh ON lhp.ma_nam_hoc = nh.id 
             LEFT JOIN phong_may pm ON lhp.ma_phong = pm.id 
+            LEFT JOIN lop_hoc lh ON lhp.ma_lop = lh.id
             ORDER BY lhp.id DESC
         `;
         const [rows] = await db.promise().query(sql);
         return rows;
     },
     createModule: async (data) => {
-        const [result] = await db.promise().query('INSERT INTO lop_hoc_phan (ma_lop_hoc_phan, ma_mon, ma_nam_hoc, ma_phong, si_so_toi_da) VALUES (?, ?, ?, ?, ?)', 
-        [data.ma_lop_hoc_phan, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da]);
+        if (!data.ma_mon) {
+            throw new Error('ma_mon is required to create a lop_hoc_phan');
+        }
+        const [result] = await db.promise().query('INSERT INTO lop_hoc_phan (ma_lop_hoc_phan, ma_lop, ma_mon, ma_nam_hoc, ma_phong, si_so_toi_da) VALUES (?, ?, ?, ?, ?, ?)', 
+        [data.ma_lop_hoc_phan, data.ma_lop || null, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da]);
         
         const newId = result.insertId;
         
@@ -90,8 +95,11 @@ const AcademicService = {
         return { id: newId };
     },
     updateModule: async (id, data) => {
-        const [result] = await db.promise().query('UPDATE lop_hoc_phan SET ma_lop_hoc_phan=?, ma_mon=?, ma_nam_hoc=?, ma_phong=?, si_so_toi_da=? WHERE id=?', 
-        [data.ma_lop_hoc_phan, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da, id]);
+        if (!data.ma_mon) {
+            throw new Error('ma_mon is required to update a lop_hoc_phan');
+        }
+        const [result] = await db.promise().query('UPDATE lop_hoc_phan SET ma_lop_hoc_phan=?, ma_lop=?, ma_mon=?, ma_nam_hoc=?, ma_phong=?, si_so_toi_da=? WHERE id=?', 
+        [data.ma_lop_hoc_phan, data.ma_lop || null, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da, id]);
         
         // Cập nhật Giảng viên
         if (data.ma_giang_vien) {
