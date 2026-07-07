@@ -15,6 +15,9 @@ router.get('/may-tinh/:id', assetsController.getComputer);
 router.post('/may-tinh', assetsController.createComputer); // Bổ sung API tạo máy tính
 router.put('/may-tinh/:id', assetsController.updateComputer);
 router.delete('/may-tinh/:id', assetsController.deleteComputer);
+router.post('/borrow-machine', assetsController.borrowMachine);
+router.get('/borrow-machine/history', assetsController.getBorrowHistory);
+router.delete('/borrow-machine/:id', assetsController.deleteBorrowRequest);
 
 // ==========================================
 // IMPORT RECEIPT (PHIẾU NHẬP MÁY)

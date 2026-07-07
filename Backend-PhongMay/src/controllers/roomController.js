@@ -1,5 +1,5 @@
 const roomService = require('../services/roomService');
-
+const db = require('../config/db');
 const RoomController = {
   addMayTinh: async (req, res, next) => {
     try {
@@ -77,6 +77,18 @@ const RoomController = {
     try {
       const rooms = await roomService.getAllRooms();
       res.status(200).json({ success: true, data: rooms });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getComputersByRoom: async (req, res, next) => {
+    try {
+      const roomId = req.params.id;
+      const conn = db.promise();
+      const [rows] = await conn.query('SELECT * FROM may_tinh WHERE ma_phong = ? ORDER BY ma_may ASC', [roomId]);
+      
+      res.json({ success: true, data: rows });
     } catch (error) {
       next(error);
     }

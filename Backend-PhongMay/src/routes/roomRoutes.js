@@ -9,5 +9,7 @@ router.get('/', roomController.getAllRooms);
 // Route cũ của bạn
 router.post('/may-tinh', roomController.addMayTinh);
 router.get('/scan/:serial', roomController.scanMachine);
+router.get('/:id/may-tinh', roomController.getComputersByRoom);
+
 
 module.exports = router;
