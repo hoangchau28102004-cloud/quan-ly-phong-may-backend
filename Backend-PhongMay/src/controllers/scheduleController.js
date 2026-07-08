@@ -90,6 +90,36 @@ const deleteBooking = async (req, res, next) => {
     next(error);
   }
 };
+const getStudentSchedule = async (req, res) => {
+    try {
+        // 🚀 FIX LỖI Ở ĐÂY: Lấy ID từ Query Param do Flutter gửi (VD: ?ma_nguoi_dung=3)
+        // Nếu req.user có tồn tại thì xài, không thì fallback sang req.query
+        const userId = req.query.ma_nguoi_dung || (req.user && req.user.id);
+        
+        // Chốt chặn an toàn: Lỡ Flutter quên gửi ID thì chửi khéo chứ không sập server
+        if (!userId) {
+            return res.status(400).json({ success: false, message: 'Thiếu tham số ma_nguoi_dung!' });
+        }
+
+        const schedules = await scheduleService.getStudentScheduleData(userId);
+        
+        res.status(200).json({ 
+            success: true, 
+            data: schedules 
+        });
+    } catch (error) {
+        console.error("Lỗi getStudentSchedule:", error);
+        res.status(500).json({ success: false, message: 'Lỗi máy chủ nội bộ' });
+    }
+};
+const getScheduleDetail = async (req, res, next) => {
+    try {
+        const detail = await scheduleService.getScheduleDetail(req.params.id);
+        res.status(200).json({ success: true, data: detail });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 
 module.exports = {
   getSchedules,
@@ -102,5 +132,7 @@ module.exports = {
   bookRoom,
   updateBooking,
   getBookingsList,
-  deleteBooking
+  deleteBooking,
+  getStudentSchedule,
+  getScheduleDetail
 };

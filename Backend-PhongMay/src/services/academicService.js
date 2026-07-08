@@ -1,14 +1,14 @@
 const db = require('../config/db');
 
 const AcademicService = {
-// --- MÔN HỌC ---
+    // --- MÔN HỌC ---
     getSubjects: async () => {
         const [rows] = await db.promise().query('SELECT * FROM mon_hoc ORDER BY id DESC');
         return rows;
     },
     
     createSubject: async (data) => {
-        console.log("==> DỮ LIỆU THÊM MÔN HỌC:", data); // In ra để kiểm tra
+        console.log("==> DỮ LIỆU THÊM MÔN HỌC:", data);
         const [result] = await db.promise().query(
             'INSERT INTO mon_hoc (ma_mon_hoc, ten_mon, loai_mon, so_tin_chi, mo_ta) VALUES (?, ?, ?, ?, ?)', 
             [data.ma_mon_hoc, data.ten_mon, data.loai_mon, data.so_tin_chi, data.mo_ta]
@@ -16,7 +16,7 @@ const AcademicService = {
         return { id: result.insertId };
     },
     updateSubject: async (id, data) => {
-        console.log("==> DỮ LIỆU SỬA MÔN HỌC:", data); // In ra để kiểm tra
+        console.log("==> DỮ LIỆU SỬA MÔN HỌC:", data);
         const [result] = await db.promise().query(
             'UPDATE mon_hoc SET ma_mon_hoc=?, ten_mon=?, loai_mon=?, so_tin_chi=?, mo_ta=? WHERE id=?', 
             [data.ma_mon_hoc, data.ten_mon, data.loai_mon, data.so_tin_chi, data.mo_ta, id]
@@ -24,7 +24,6 @@ const AcademicService = {
         return result.affectedRows;
     },
 
-    
     // --- LỚP HỌC ---
     getClasses: async () => {
         const sql = `
@@ -51,9 +50,7 @@ const AcademicService = {
         return result.affectedRows;
     },
 
-   // =========================================================================
     // --- LỚP HỌC PHẦN ---
-    // =========================================================================
     getModules: async () => {
         const sql = `
             SELECT 
@@ -80,28 +77,21 @@ const AcademicService = {
         return rows;
     },
     createModule: async (data) => {
-        if (!data.ma_mon) {
-            throw new Error('ma_mon is required to create a lop_hoc_phan');
-        }
+        if (!data.ma_mon) throw new Error('ma_mon is required to create a lop_hoc_phan');
         const [result] = await db.promise().query('INSERT INTO lop_hoc_phan (ma_lop_hoc_phan, ma_lop, ma_mon, ma_nam_hoc, ma_phong, si_so_toi_da) VALUES (?, ?, ?, ?, ?, ?)', 
         [data.ma_lop_hoc_phan, data.ma_lop || null, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da]);
         
         const newId = result.insertId;
-        
-        // Lưu Giảng viên vào bảng phân công
         if (data.ma_giang_vien) {
             await db.promise().query('INSERT INTO phan_cong_giang_vien (ma_lop_hoc_phan, ma_giang_vien) VALUES (?, ?)', [newId, data.ma_giang_vien]);
         }
         return { id: newId };
     },
     updateModule: async (id, data) => {
-        if (!data.ma_mon) {
-            throw new Error('ma_mon is required to update a lop_hoc_phan');
-        }
+        if (!data.ma_mon) throw new Error('ma_mon is required to update a lop_hoc_phan');
         const [result] = await db.promise().query('UPDATE lop_hoc_phan SET ma_lop_hoc_phan=?, ma_lop=?, ma_mon=?, ma_nam_hoc=?, ma_phong=?, si_so_toi_da=? WHERE id=?', 
         [data.ma_lop_hoc_phan, data.ma_lop || null, data.ma_mon, data.ma_nam_hoc, data.ma_phong, data.si_so_toi_da, id]);
         
-        // Cập nhật Giảng viên
         if (data.ma_giang_vien) {
             await db.promise().query('DELETE FROM phan_cong_giang_vien WHERE ma_lop_hoc_phan = ?', [id]);
             await db.promise().query('INSERT INTO phan_cong_giang_vien (ma_lop_hoc_phan, ma_giang_vien) VALUES (?, ?)', [id, data.ma_giang_vien]);
@@ -132,14 +122,13 @@ const AcademicService = {
         return result.affectedRows;
     },
 
-    // ================= DANH SÁCH SINH VIÊN TRONG LỚP =================
+    // --- SINH VIÊN TRONG LỚP ---
     getStudentsByClass: async (classId) => {
         const sql = `
             SELECT sv.id, sv.ma_sinh_vien, nd.ho_ten, nd.email, sv.nien_khoa
             FROM sinh_vien sv
             JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
-            WHERE sv.ma_lop = ?
-            ORDER BY sv.ma_sinh_vien ASC
+            WHERE sv.ma_lop = ? ORDER BY sv.ma_sinh_vien ASC
         `;
         const [rows] = await db.promise().query(sql, [classId]);
         return rows;
@@ -149,8 +138,7 @@ const AcademicService = {
             SELECT sv.id, sv.ma_sinh_vien, nd.ho_ten 
             FROM sinh_vien sv
             JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
-            WHERE sv.ma_lop IS NULL
-            ORDER BY sv.ma_sinh_vien ASC
+            WHERE sv.ma_lop IS NULL ORDER BY sv.ma_sinh_vien ASC
         `;
         const [rows] = await db.promise().query(sql);
         return rows;
@@ -163,8 +151,8 @@ const AcademicService = {
         const [result] = await db.promise().query('UPDATE sinh_vien SET ma_lop = NULL WHERE id = ?', [studentId]);
         return result.affectedRows;
     },
-    // ================= SINH VIÊN TRONG LỚP HỌC PHẦN =================
-    // 1. Lấy danh sách sinh viên của lớp học phần
+
+    // --- SINH VIÊN TRONG LỚP HỌC PHẦN ---
     getStudentsByModule: async (moduleId) => {
         const sql = `
             SELECT sv.id, sv.ma_sinh_vien, nd.ho_ten, nd.email, lh.ma_lop, sv.nien_khoa
@@ -172,19 +160,15 @@ const AcademicService = {
             JOIN sinh_vien sv ON ct.ma_sinh_vien = sv.id
             JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
             LEFT JOIN lop_hoc lh ON sv.ma_lop = lh.id
-            WHERE ct.ma_lop_hoc_phan = ?
-            ORDER BY sv.ma_sinh_vien ASC
+            WHERE ct.ma_lop_hoc_phan = ? ORDER BY sv.ma_sinh_vien ASC
         `;
         const [rows] = await db.promise().query(sql, [moduleId]);
         return rows;
     },
-    // 2. Thêm sinh viên vào Lớp học phần
     addStudentToModule: async (moduleId, studentId) => {
-        // CHẶN 1: Kiểm tra xem sinh viên đã có trong lớp chưa
         const [exist] = await db.promise().query('SELECT * FROM chi_tiet_lop_hoc_phan WHERE ma_lop_hoc_phan = ? AND ma_sinh_vien = ?', [moduleId, studentId]);
         if (exist.length > 0) throw new Error('Sinh viên đã tồn tại trong lớp này!');
 
-        // CHẶN 2: Kiểm tra sĩ số tối đa
         const [lhp] = await db.promise().query('SELECT si_so_toi_da FROM lop_hoc_phan WHERE id = ?', [moduleId]);
         const [count] = await db.promise().query('SELECT COUNT(*) as total FROM chi_tiet_lop_hoc_phan WHERE ma_lop_hoc_phan = ?', [moduleId]);
         
@@ -192,14 +176,150 @@ const AcademicService = {
             throw new Error('Vượt quá sĩ số tối đa của Lớp học phần!');
         }
 
-        // BƯỚC 3: Mọi thứ an toàn -> Tiến hành lưu vào DB
         const [result] = await db.promise().query('INSERT INTO chi_tiet_lop_hoc_phan (ma_lop_hoc_phan, ma_sinh_vien) VALUES (?, ?)', [moduleId, studentId]);
         return result.affectedRows;
     },
-    // 3. Xóa sinh viên khỏi Lớp học phần
     removeStudentFromModule: async (moduleId, studentId) => {
         const [result] = await db.promise().query('DELETE FROM chi_tiet_lop_hoc_phan WHERE ma_lop_hoc_phan = ? AND ma_sinh_vien = ?', [moduleId, studentId]);
         return result.affectedRows;
+    },
+
+    // --- DASHBOARD SINH VIÊN ---
+    getStudentDashboardData : async (userId) => {
+        const [[{ coursesCount }]] = await db.promise().query(`
+            SELECT COUNT(ctlhp.id) as coursesCount 
+            FROM chi_tiet_lop_hoc_phan ctlhp
+            JOIN sinh_vien sv ON ctlhp.ma_sinh_vien = sv.id
+            WHERE sv.ma_nguoi_dung = ? AND ctlhp.trang_thai = 'active'
+        `, [userId]);
+
+        const [upcoming] = await db.promise().query(`
+            SELECT mh.ten_mon, CONCAT('Tiết ', ls.so_tiet_bat_dau, '-', ls.so_tiet_ket_thuc, ' ', DATE_FORMAT(ls.ngay_hoc_cu_the, '%d/%m/%Y')) as thoi_gian, pm.ten_phong as phong
+            FROM lich_su_dung_phong_may ls
+            JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id JOIN mon_hoc mh ON lhp.ma_mon = mh.id JOIN phong_may pm ON ls.ma_phong = pm.id
+            JOIN chi_tiet_lop_hoc_phan ctlhp ON ctlhp.ma_lop_hoc_phan = lhp.id JOIN sinh_vien sv ON ctlhp.ma_sinh_vien = sv.id
+            WHERE sv.ma_nguoi_dung = ? AND ls.ngay_hoc_cu_the >= CURDATE()
+            ORDER BY ls.ngay_hoc_cu_the ASC LIMIT 3
+        `, [userId]);
+
+        const [recentAttendance] = await db.promise().query(`
+            SELECT mh.ten_mon, DATE_FORMAT(dd.thoi_gian_check_in, '%H:%i %d/%m/%Y') as thoi_gian, dd.trang_thai
+            FROM diem_danh dd
+            JOIN lich_su_dung_phong_may ls ON dd.ma_lich_su_dung = ls.id JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+            JOIN mon_hoc mh ON lhp.ma_mon = mh.id JOIN sinh_vien sv ON dd.ma_sinh_vien = sv.id
+            WHERE sv.ma_nguoi_dung = ? ORDER BY dd.thoi_gian_check_in DESC LIMIT 3
+        `, [userId]);
+
+        const [[{ incidentsCount }]] = await db.promise().query(`
+            SELECT COUNT(id) as incidentsCount FROM bao_cao_su_co WHERE ma_nguoi_bao_cao = ? AND trang_thai = 'open'
+        `, [userId]);
+
+        return { coursesCount: coursesCount || 0, upcomingCount: upcoming.length, attendanceCount: recentAttendance.length, incidentsCount: incidentsCount || 0, upcoming, recentAttendance };
+    },
+
+    // =========================================================================
+    // --- TÍNH NĂNG MỚI: QUẢN LÝ NĂM HỌC & TỰ ĐỘNG CHIA TUẦN ---
+    // =========================================================================
+    getAcademicYears: async () => {
+        const [rows] = await db.promise().query('SELECT * FROM nam_hoc ORDER BY ngay_bat_dau DESC');
+        return rows;
+    },
+    
+    getWeeksByYear: async (ma_nam_hoc) => {
+        const [rows] = await db.promise().query('SELECT * FROM tuan WHERE ma_nam_hoc = ? ORDER BY so_tuan ASC', [ma_nam_hoc]);
+        return rows;
+    },
+
+   createAcademicYear: async (data) => {
+        const { ten_nam_hoc, ngay_bat_dau, ngay_ket_thuc, trang_thai } = data;
+        const connection = await db.promise().getConnection();
+        
+        try {
+            await connection.beginTransaction();
+
+            const sqlYear = `INSERT INTO nam_hoc (ten_nam_hoc, ngay_bat_dau, ngay_ket_thuc, trang_thai, created_at) VALUES (?, ?, ?, ?, NOW())`;
+            const [yearResult] = await connection.query(sqlYear, [ten_nam_hoc, ngay_bat_dau, ngay_ket_thuc, trang_thai || 'pending']);
+            const newYearId = yearResult.insertId;
+
+            // Hàm hỗ trợ format ngày chuẩn YYYY-MM-DD (Tránh lỗi lùi 1 ngày do lệch múi giờ của JS)
+            const formatDateStr = (dateObj) => {
+                const y = dateObj.getFullYear();
+                const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const d = String(dateObj.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
+
+            let startDate = new Date(ngay_bat_dau);
+            let endDate = new Date(ngay_ket_thuc);
+            let currentWeekStart = new Date(startDate);
+            let weekNumber = 1;
+
+            while (currentWeekStart <= endDate) {
+                let currentWeekEnd = new Date(currentWeekStart);
+
+                // Lấy ngày trong tuần của currentWeekStart (0: Chủ nhật, 1: Thứ 2, ..., 6: Thứ 7)
+                let currentDayOfWeek = currentWeekStart.getDay();
+
+                // Tính số ngày cần cộng thêm để đến mốc CHỦ NHẬT
+                // Nếu đang là Chủ Nhật (0) thì cộng 0. Nếu thứ 2 (1) thì cộng 6.
+                let daysUntilSunday = currentDayOfWeek === 0 ? 0 : 7 - currentDayOfWeek;
+
+                // Set ngày kết thúc tuần là Chủ Nhật của tuần đó
+                currentWeekEnd.setDate(currentWeekStart.getDate() + daysUntilSunday);
+
+                // Ràng buộc: Nếu ngày Chủ Nhật này vượt lố quá ngày kết thúc năm học, thì chốt hạ bằng ngày kết thúc năm
+                if (currentWeekEnd > endDate) {
+                    currentWeekEnd = new Date(endDate);
+                }
+
+                // Lưu vào database
+                const sqlWeek = `INSERT INTO tuan (ma_nam_hoc, so_tuan, ngay_bat_dau, ngay_ket_thuc, created_at) VALUES (?, ?, ?, ?, NOW())`;
+                await connection.query(sqlWeek, [
+                    newYearId, 
+                    weekNumber, 
+                    formatDateStr(currentWeekStart), 
+                    formatDateStr(currentWeekEnd)
+                ]);
+
+                // Bắt đầu tuần mới = Ngày kết thúc tuần cũ + 1 ngày (Tức là nhảy sang chính xác Thứ 2 của tuần sau)
+                currentWeekStart = new Date(currentWeekEnd);
+                currentWeekStart.setDate(currentWeekEnd.getDate() + 1);
+                weekNumber++;
+            }
+
+            await connection.commit();
+            return { success: true, id: newYearId, message: `Đã tạo năm học và chia thành ${weekNumber - 1} tuần` };
+        } catch (error) {
+           await connection.rollback();
+            
+            // Dịch lỗi SQL thành Tiếng Việt cho App Flutter hiển thị
+            if (error.code === 'ER_DUP_ENTRY') {
+                throw new Error(`Năm học '${ten_nam_hoc}' đã tồn tại. Vui lòng nhập tên khác!`);
+            }
+            
+            console.error("LỖI SQL TẠO NĂM HỌC:", error.message);
+            throw error; // Ném ra Controller
+        } finally {
+            connection.release();
+        }
+    },
+
+    deleteAcademicYear: async (id) => {
+        try {
+            // Cố gắng xóa năm học
+            const [result] = await db.promise().query('DELETE FROM nam_hoc WHERE id = ?', [id]);
+            return result.affectedRows;
+        } catch (error) {
+            // ER_ROW_IS_REFERENCED_2 (hoặc lỗi 1451) là mã lỗi kinh điển của MySQL khi vi phạm Khóa Ngoại
+            if (error.code === 'ER_ROW_IS_REFERENCED_2' || error.errno === 1451) {
+                // Quăng lỗi bằng Tiếng Việt để tầng Controller đẩy lên cho Flutter
+                throw new Error('Không thể xóa! Năm học này đã có Lớp Học Phần. Vui lòng xóa các Lớp Học Phần của năm này trước.');
+            }
+            
+            // Nếu là một lỗi lạ khác thì log ra console
+            console.error("❌ LỖI SQL XÓA NĂM HỌC:", error.message);
+            throw error; 
+        }
     }
 };
 

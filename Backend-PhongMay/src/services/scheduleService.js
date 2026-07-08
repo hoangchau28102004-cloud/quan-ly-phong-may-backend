@@ -38,7 +38,16 @@ const createSchedule = async (data) => {
     if (!data.thu_trong_tuan) throw new Error('Flutter gửi thiếu biến "thu_trong_tuan" (VD: Thứ 2)!');
 
     let ma_tuan = data.ma_tuan || null;
-
+    let ma_lop_cha = null;
+    if (data.ma_lop_hoc_phan) {
+        const [lhpRows] = await db.promise().query(
+            'SELECT ma_lop FROM lop_hoc_phan WHERE id = ?', 
+            [data.ma_lop_hoc_phan]
+        );
+        if (lhpRows.length > 0) {
+            ma_lop_cha = lhpRows[0].ma_lop; // Bắt được ID lớp cha
+        }
+    }   
     // 3. NẾU KHÔNG TRUYỀN MÃ TUẦN, BACKEND SẼ TỰ DÒ TÌM TRONG DB
     if (!ma_tuan && data.ngay_hoc_cu_the) {
         const sqlFindTuan = `
@@ -59,15 +68,16 @@ const createSchedule = async (data) => {
     // 4. CHÈN VÀO DATABASE (CÓ ĐỦ BỘ GIÁP BẢO VỆ)
     const sql = `
         INSERT INTO lich_su_dung_phong_may 
-        (ma_phong, ma_lop_hoc_phan, ma_giang_vien, ngay_hoc_cu_the, so_tiet_bat_dau, so_tiet_ket_thuc, loai_lich, thu_trong_tuan, ma_tuan, trang_thai) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
+        (ma_phong, ma_lop, ma_lop_hoc_phan, ma_giang_vien, ngay_hoc_cu_the, so_tiet_bat_dau, so_tiet_ket_thuc, loai_lich, thu_trong_tuan, ma_tuan, trang_thai) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
     `;
     
     // Ép kiểu để DB không bị sốc
     const [result] = await db.promise().query(sql, [
         parseInt(data.ma_phong),
+        ma_lop_cha, // Lưu Lớp Cha vào đây
         data.ma_lop_hoc_phan ? parseInt(data.ma_lop_hoc_phan) : null,
-        data.ma_giang_vien ? parseInt(data.ma_giang_vien) : null, // Thêm gv để biết ai dạy
+        data.ma_giang_vien ? parseInt(data.ma_giang_vien) : null, 
         data.ngay_hoc_cu_the,
         parseInt(data.so_tiet_bat_dau),
         parseInt(data.so_tiet_ket_thuc),
@@ -286,6 +296,98 @@ const deleteBooking = async (id) => {
   return result.affectedRows || 0;
 };
 
+const getStudentScheduleData = async (userId) => {
+    // 🚀 SỬA TÊN CỘT BẰNG ALIAS (AS) ĐỂ KHỚP 100% VỚI APP FLUTTER
+    const sql = `
+        SELECT 
+            ls.id, 
+            mh.ten_mon, 
+            lhp.ma_lop_hoc_phan AS ma_lhp_str, 
+            pm.ten_phong, 
+            pm.id AS phong_may_id,
+            nd_gv.ho_ten AS ten_giang_vien, 
+            DATE_FORMAT(ls.ngay_hoc_cu_the, '%Y-%m-%d') AS ngay_hoc, -- Phải là định dạng YYYY-MM-DD
+            ls.thu_trong_tuan AS thu, 
+            ls.so_tiet_bat_dau AS tiet_bat_dau, 
+            ls.so_tiet_ket_thuc AS tiet_ket_thuc, 
+            ls.loai_lich, 
+            ls.trang_thai,
+            ls.ma_tuan AS tuan_id,
+            lh.ma_lop,
+            CASE
+                WHEN ls.so_tiet_bat_dau >= 11 THEN 'Tối'
+                WHEN ls.so_tiet_bat_dau >= 6 THEN 'Chiều'
+                ELSE 'Sáng'
+            END AS ma_ca
+        FROM lich_su_dung_phong_may ls
+        JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+        JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+        JOIN phong_may pm ON ls.ma_phong = pm.id
+        JOIN chi_tiet_lop_hoc_phan ctlhp ON ctlhp.ma_lop_hoc_phan = lhp.id
+        JOIN sinh_vien sv ON ctlhp.ma_sinh_vien = sv.id
+        LEFT JOIN lop_hoc lh ON lhp.ma_lop = lh.id
+        LEFT JOIN giang_vien gv ON ls.ma_giang_vien = gv.id
+        LEFT JOIN nguoi_dung nd_gv ON gv.ma_nguoi_dung = nd_gv.id
+        WHERE sv.ma_nguoi_dung = ?
+        ORDER BY ls.ngay_hoc_cu_the ASC
+    `;
+    const [rows] = await db.promise().query(sql, [userId]);
+    
+    // 🚀 BƯỚC ÉP KIỂU: Biến chữ "Thứ 3" thành số 3 giống hệt Admin
+    return rows.map(r => {
+        let thuInt = 2;
+        if (r.thu === 'Thứ 2') thuInt = 2;
+        else if (r.thu === 'Thứ 3') thuInt = 3;
+        else if (r.thu === 'Thứ 4') thuInt = 4;
+        else if (r.thu === 'Thứ 5') thuInt = 5;
+        else if (r.thu === 'Thứ 6') thuInt = 6;
+        else if (r.thu === 'Thứ 7') thuInt = 7;
+        else if (r.thu === 'Chủ Nhật' || r.thu === 'CN') thuInt = 8;
+
+        return {
+            ...r,
+            thu: thuInt,
+            gio_bat_dau: r.tiet_bat_dau ? 'Tiết ' + r.tiet_bat_dau : 'Tiết 1',
+            gio_ket_thuc: r.tiet_ket_thuc ? 'Tiết ' + r.tiet_ket_thuc : 'Tiết 3',
+            ma_lop: r.ma_lop || r.ma_lhp_str || 'Lớp chung',
+            ten_giang_vien: r.ten_giang_vien || 'Đang cập nhật'
+        };
+    });
+};
+const getScheduleDetail = async (scheduleId) => {
+    const connection = await db.promise().getConnection();
+    try {
+        const sql = `
+            SELECT 
+                ls.id AS ma_lich,
+                DATE_FORMAT(ls.ngay_hoc_cu_the, '%d/%m/%Y') AS ngay_hoc_cu_the,
+                ls.so_tiet_bat_dau,
+                ls.so_tiet_ket_thuc,
+                lhp.ma_lop_hoc_phan,
+                mh.ten_mon,
+                pm.ten_phong,
+                nd.ho_ten AS ten_giang_vien,
+                (SELECT COUNT(*) FROM chi_tiet_lop_hoc_phan ctlhp WHERE ctlhp.ma_lop_hoc_phan = ls.ma_lop_hoc_phan) AS si_so_thuc_te,
+                (SELECT COUNT(*) FROM may_tinh mt WHERE mt.ma_phong = ls.ma_phong AND mt.trang_thai = 'active') AS so_may_tinh
+            FROM lich_su_dung_phong_may ls
+            LEFT JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+            LEFT JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+            LEFT JOIN phong_may pm ON ls.ma_phong = pm.id
+            LEFT JOIN giang_vien gv ON ls.ma_giang_vien = gv.id
+            LEFT JOIN nguoi_dung nd ON gv.ma_nguoi_dung = nd.id
+            WHERE ls.id = ?
+        `;
+        const [rows] = await connection.query(sql, [scheduleId]);
+        
+        if (rows.length === 0) throw new Error("Không tìm thấy thông tin lịch học!");
+        return rows[0];
+    } catch (error) {
+        console.error("LỖI LẤY CHI TIẾT LỊCH HỌC:", error.message);
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 module.exports = {
   getSchedules,
   createSchedule,
@@ -296,5 +398,7 @@ module.exports = {
   getSchedule,
   bookRoom,
   getBookings,
-  deleteBooking
+  deleteBooking,
+  getStudentScheduleData,
+  getScheduleDetail
 };

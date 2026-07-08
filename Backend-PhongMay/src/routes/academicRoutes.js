@@ -24,6 +24,14 @@ router.delete('/lop-hoc-phan/:id', controller.deleteModule);
 router.get('/giang-vien', controller.getTeachers);
 
 // ==========================================
+// Quản lý NĂM HỌC & TUẦN (Mới thêm)
+// ==========================================
+router.get('/nam-hoc', controller.getAcademicYears);
+router.post('/nam-hoc', controller.createAcademicYear);
+router.delete('/nam-hoc/:id', controller.deleteAcademicYear);
+router.get('/tuan/:yearId', controller.getWeeksByYear);
+
+// ==========================================
 // Quản lý sinh viên trong LỚP HỌC (Class)
 // ==========================================
 router.get('/lop-hoc/:classId/sinh-vien', controller.getStudentsByClass);
@@ -37,5 +45,6 @@ router.delete('/sinh-vien/:studentId/khoi-lop', controller.removeStudentFromClas
 router.get('/lop-hoc-phan/:moduleId/sinh-vien', controller.getStudentsByModule);
 router.post('/lop-hoc-phan/:moduleId/sinh-vien', controller.addStudentToModule);
 router.delete('/lop-hoc-phan/:moduleId/sinh-vien/:studentId', controller.removeStudentFromModule);
+router.get('/student-dashboard/:id', controller.getStudentDashboard);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/scheduleController');
+const RoomController = require('../controllers/roomController');
 
 // Quản lý Lịch phòng máy
 router.get('/lich-phong', controller.getSchedules);
@@ -22,5 +23,8 @@ router.delete('/:id', controller.deleteBooking);
 
 // Duyệt phiếu (Admin)
 router.patch('/:id/status', controller.updateBooking);
+
+router.get('/student', controller.getStudentSchedule);
+router.get('/details/:id', controller.getScheduleDetail);
 
 module.exports = router;
