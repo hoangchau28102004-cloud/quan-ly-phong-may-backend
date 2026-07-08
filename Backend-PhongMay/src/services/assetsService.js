@@ -291,6 +291,46 @@ const updateEquipment = async (id, data) => {
 };
 const deleteEquipment = async (id) => { await db.promise().query('DELETE FROM thiet_bi WHERE id=?', [id]); };
 
+const scanLecturerMachine = async (qrCode) => {
+    const connection = await db.promise().getConnection();
+    try {
+        // 1. Tìm thông tin máy tính dựa vào mã QR
+        const [machines] = await connection.query(`
+            SELECT mt.*, pm.ten_phong 
+            FROM may_tinh mt 
+            JOIN phong_may pm ON mt.ma_phong = pm.id 
+            WHERE mt.ma_qr = ? AND mt.trang_thai = 'active'
+        `, [qrCode]);
+
+        if (machines.length === 0) {
+            throw new Error('Mã QR không hợp lệ hoặc máy tính không tồn tại.');
+        }
+
+        const machine = machines[0];
+
+        // 2. Tìm lịch học ĐANG DIỄN RA tại phòng máy này trong ngày hôm nay
+        // (Giả sử lấy lịch học của ngày hiện tại)
+        const [schedules] = await connection.query(`
+            SELECT ls.id AS ma_lich, ls.so_tiet_bat_dau, ls.so_tiet_ket_thuc,
+                   lhp.ma_lop_hoc_phan, mh.ten_mon
+            FROM lich_su_dung_phong_may ls
+            JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+            JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+            WHERE ls.ma_phong = ? AND ls.ngay_hoc_cu_the = CURRENT_DATE()
+            LIMIT 1
+        `, [machine.ma_phong]);
+
+        return {
+            machine: machine,
+            current_schedule: schedules.length > 0 ? schedules[0] : null
+        };
+    } catch (error) {
+        console.error("LỖI QUÉT QR GIẢNG VIÊN:", error.message);
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 module.exports = {
     listRooms,
     getRoomById,
@@ -309,5 +349,6 @@ module.exports = {
     getEquipments,
     createEquipment,
     updateEquipment,
-    deleteEquipment
+    deleteEquipment,
+    scanLecturerMachine
 };

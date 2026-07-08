@@ -4,5 +4,6 @@ const attendanceController = require('../controllers/attendanceController');
 
 
 router.post('/check-in-qr',  attendanceController.scanQRCheckIn);
+router.get('/students/:scheduleId', attendanceController.getStudentsBySchedule);
 
 module.exports = router;

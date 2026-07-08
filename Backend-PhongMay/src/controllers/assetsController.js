@@ -1,4 +1,5 @@
 const assetsService = require('../services/assetsService');
+const db = require('../config/db');
 
 // ======================= PHÒNG MÁY =======================
 const listRooms = async (req, res) => {
@@ -161,9 +162,91 @@ const getTransferHistory = async (req, res) => {
   }
 };
 
+const borrowMachine = async (req, res, next) => {
+  try {
+    const { nguoi_dung_id, so_luong, ly_do_muon, ghi_chu } = req.body;
+    const conn = db.promise();
+
+    // 1. Tìm thông tin giảng viên
+    const [gv] = await conn.query('SELECT id, ma_phong_ban FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
+    if (gv.length === 0) {
+      return res.status(400).json({ success: false, message: 'Tài khoản không phải là Giảng viên!' });
+    }
+
+    const ma_giang_vien = gv[0].id;
+    const ma_phong_ban = gv[0].ma_phong_ban || 1; 
+
+    // 2. Sinh mã phiếu mượn tự động
+    const ma_phieu_muon = 'PM-' + Date.now().toString().slice(-6);
+
+    // 3. Thêm vào database
+    const sql = `INSERT INTO phieu_muon_may 
+                 (ma_phieu_muon, ma_giang_vien, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, trang_thai, ghi_chu)
+                 VALUES (?, ?, ?, NOW(), ?, ?, 'Chờ duyệt', ?)`;
+                 
+    await conn.query(sql, [ma_phieu_muon, ma_giang_vien, ma_phong_ban, so_luong, ly_do_muon, ghi_chu]);
+
+    res.status(201).json({ success: true, message: 'Gửi yêu cầu mượn thiết bị thành công!' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getBorrowHistory = async (req, res, next) => {
+  try {
+    const { nguoi_dung_id } = req.query;
+    const conn = db.promise();
+
+    // Tìm mã giảng viên
+    const [gv] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
+    if (gv.length === 0) return res.json({ success: true, data: [] });
+
+    // Lấy danh sách phiếu mượn của giảng viên này
+    const [rows] = await conn.query(
+      'SELECT * FROM phieu_muon_may WHERE ma_giang_vien = ? ORDER BY ngay_muon DESC', 
+      [gv[0].id]
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteBorrowRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const conn = db.promise();
+    
+    // Chỉ cho phép xóa khi trạng thái là 'Chờ duyệt'
+    const sql = `DELETE FROM phieu_muon_may WHERE id = ? AND trang_thai = 'Chờ duyệt'`;
+    const [result] = await conn.query(sql, [id]);
+
+    if (result.affectedRows > 0) {
+      res.json({ success: true, message: 'Đã hủy yêu cầu mượn thiết bị!' });
+    } else {
+      res.status(400).json({ success: false, message: 'Không thể hủy (đã được duyệt hoặc không tồn tại).' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+const scanLecturerMachine = async (req, res, next) => {
+    try {
+        const { qrCode } = req.body;
+        if (!qrCode) return res.status(400).json({ success: false, message: 'Thiếu mã QR' });
+
+        const result = await assetsService.scanLecturerMachine(qrCode);
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
   listComputers, getComputer, createComputer, updateComputer, deleteComputer,
   listImportReceipts, createImportReceipt,
-  transferMachines, getTransferHistory
+  borrowMachine, getBorrowHistory, deleteBorrowRequest,
+  transferMachines, getTransferHistory,scanLecturerMachine
 };

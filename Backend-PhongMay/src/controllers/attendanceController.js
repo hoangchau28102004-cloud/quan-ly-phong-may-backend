@@ -40,8 +40,19 @@ const scanQRCheckIn = async (req, res) => {
             message: error.message
         });
     }
+    
 };
-
+const getStudentsBySchedule = async (req, res) => {
+    const { scheduleId } = req.params;
+    try {
+        // Gọi sang Service để lấy data
+        const students = await attendanceService.getStudentsBySchedule(scheduleId);
+        res.status(200).json({ success: true, data: students });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách sinh viên:", error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 module.exports = {
-    scanQRCheckIn
+    scanQRCheckIn,getStudentsBySchedule
 };

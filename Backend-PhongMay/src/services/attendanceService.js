@@ -1,6 +1,6 @@
 const db = require('../config/db');
 
-// Xử lý logic điểm danh bằng QR Code
+// 1. Xử lý logic điểm danh bằng QR Code (Code cũ của bạn)
 const checkInWithQR = async (userId, scheduleId, qrCode) => {
     // 1. Lấy sinh_vien_id từ ma_nguoi_dung (của token)
     const [students] = await db.promise().query('SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?', [userId]);
@@ -10,7 +10,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
     const studentId = students[0].id;
 
     // 2. Tìm máy tính từ mã QR do client gửi lên
-   const [computers] = await db.promise().query(
+    const [computers] = await db.promise().query(
         'SELECT id, ma_phong, ten_may, vi_tri, bo_xu_ly, ram, man_hinh, ban_phim, chuot FROM may_tinh WHERE ma_qr = ? AND trang_thai = "active"', 
         [qrCode]
     );
@@ -34,7 +34,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
         throw new Error(`Gian lận! Máy ${computer.ten_may} không thuộc phòng máy của ca học này.`);
     }
 
-   // 5. Validate: Sinh viên đã điểm danh ca này chưa?
+    // 5. Validate: Sinh viên đã điểm danh ca này chưa?
     const [existingChecks] = await db.promise().query(
         'SELECT id, ma_may_tinh FROM diem_danh WHERE ma_lich_su_dung = ? AND ma_sinh_vien = ?', 
         [scheduleId, studentId]
@@ -48,7 +48,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
              throw new Error(`Bạn đã điểm danh ở máy ${computer.ten_may} rồi. Chúc bạn học tốt!`);
         }
 
-        // 🚀 LOGIC MỚI: Nếu quét sang máy khác -> Cập nhật vị trí máy và thời gian
+        // Nếu quét sang máy khác -> Cập nhật vị trí máy và thời gian
         await db.promise().query(
             'UPDATE diem_danh SET ma_may_tinh = ?, thoi_gian_check_in = CURRENT_TIMESTAMP WHERE id = ?',
             [computer.id, currentRecord.id]
@@ -68,7 +68,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
         };
     }
 
-    // 6. Qua hết vòng gửi xe (Chưa điểm danh bao giờ) -> Ghi nhận INSERT mới
+    // 6. Chưa điểm danh bao giờ -> Ghi nhận INSERT mới
     const [result] = await db.promise().query(
         `INSERT INTO diem_danh (ma_lich_su_dung, ma_sinh_vien, ma_lop_hoc_phan, ma_may_tinh, trang_thai) 
          VALUES (?, ?, ?, ?, 'present')`,
@@ -76,7 +76,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
     );
 
     return {
-       diem_danh_id: result.insertId,
+        diem_danh_id: result.insertId,
         ten_may: computer.ten_may,
         vi_tri: computer.vi_tri,
         bo_xu_ly: computer.bo_xu_ly,
@@ -87,10 +87,25 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
         thoi_gian: new Date(),
         is_update: false
     };
-
-   
 };
 
+// 2. Kéo danh sách sinh viên thật dựa vào lịch dạy (Hàm mới thêm vào)
+const getStudentsBySchedule = async (scheduleId) => {
+    const sql = `
+        SELECT DISTINCT sv.ma_sinh_vien as maSV, nd.ho_ten as hoTen, 'present' as status
+        FROM lich_su_dung_phong_may ls
+        LEFT JOIN chi_tiet_lop_hoc_phan ct ON ls.ma_lop_hoc_phan = ct.ma_lop_hoc_phan
+        LEFT JOIN sinh_vien sv ON (sv.id = ct.ma_sinh_vien OR sv.ma_lop = ls.ma_lop)
+        JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
+        WHERE ls.id = ? AND sv.id IS NOT NULL AND sv.ma_sinh_vien IS NOT NULL
+        ORDER BY nd.ho_ten ASC
+    `;
+    const [students] = await db.promise().query(sql, [scheduleId]);
+    return students;
+};
+
+// 3. XUẤT MODULE PHẢI NẰM DƯỚI CÙNG
 module.exports = {
-    checkInWithQR
+    checkInWithQR,
+    getStudentsBySchedule
 };
