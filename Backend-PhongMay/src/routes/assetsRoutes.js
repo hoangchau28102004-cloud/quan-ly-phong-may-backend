@@ -18,6 +18,11 @@ router.delete('/may-tinh/:id', assetsController.deleteComputer);
 router.post('/borrow-machine', assetsController.borrowMachine);
 router.get('/borrow-machine/history', assetsController.getBorrowHistory);
 router.delete('/borrow-machine/:id', assetsController.deleteBorrowRequest);
+// Chú ý đường dẫn phải khớp chính xác với Flutter đang gọi
+router.get('/muon-thiet-bi/history', assetsController.getBorrowHistory);
+router.get('/tra-thiet-bi/history', assetsController.getReturnHistory);
+router.post('/tra-thiet-bi', assetsController.returnMachine);
+router.delete('/tra-thiet-bi/:id', assetsController.cancelReturnRequest);
 
 // ==========================================
 // IMPORT RECEIPT (PHIẾU NHẬP MÁY)
