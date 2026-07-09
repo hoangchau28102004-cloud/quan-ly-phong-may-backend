@@ -331,6 +331,53 @@ const scanLecturerMachine = async (qrCode) => {
         connection.release();
     }
 };
+const getAvailableMachinesForBorrow = async () => {
+    // Tìm các máy đang 'active' và không nằm trong các phiếu mượn chưa trả
+    const sql = `
+        SELECT mt.id, mt.ma_may, mt.ten_may, pm.ten_phong 
+        FROM may_tinh mt
+        LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
+        WHERE mt.trang_thai = 'active' 
+        AND mt.id NOT IN (
+            SELECT ct.ma_may_tinh 
+            FROM chi_tiet_phieu_muon_may ct
+            JOIN phieu_muon_may p ON ct.ma_phieu_muon = p.id
+            WHERE p.trang_thai IN ('Chờ duyệt', 'Đang mượn')
+        )
+    `;
+    const [rows] = await db.promise().query(sql);
+    return rows;
+};
+
+// Admin duyệt phiếu mượn và cấp phát máy cụ thể
+const approveBorrowRequest = async (phieuId, machineIds) => {
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Cập nhật trạng thái phiếu mượn thành 'Đã duyệt' (hoặc 'Đang mượn')
+        await connection.query(
+            `UPDATE phieu_muon_may SET trang_thai = 'Đang mượn', updated_at = NOW() WHERE id = ?`,
+            [phieuId]
+        );
+
+        // 2. Insert từng máy tính được admin tick chọn vào chi_tiet_phieu_muon_may
+        for (const machineId of machineIds) {
+            await connection.query(
+                `INSERT INTO chi_tiet_phieu_muon_may (ma_phieu_muon, ma_may_tinh, tinh_trang_khi_muon) 
+                 VALUES (?, ?, 'Hoạt động tốt')`,
+                [phieuId, machineId]
+            );
+        }
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 module.exports = {
     listRooms,
     getRoomById,
@@ -350,5 +397,7 @@ module.exports = {
     createEquipment,
     updateEquipment,
     deleteEquipment,
-    scanLecturerMachine
+    scanLecturerMachine,
+    getAvailableMachinesForBorrow,
+    approveBorrowRequest
 };

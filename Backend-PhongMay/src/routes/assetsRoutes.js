@@ -37,4 +37,7 @@ router.get('/transfer-history', assetsController.getTransferHistory);
 
 // 5. Quét mã QR máy tính của giảng viên
 router.post('/scan-lecturer', assetsController.scanLecturerMachine);
+
+router.get('/borrow/available-machines', assetsController.getAvailableMachines);
+router.post('/borrow/approve/:id', assetsController.approveBorrow);
 module.exports = router;

@@ -242,11 +242,35 @@ const scanLecturerMachine = async (req, res, next) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+// Lấy danh sách máy khả dụng
+const getAvailableMachines = async (req, res) => {
+    try {
+        const machines = await assetsService.getAvailableMachinesForBorrow();
+        res.status(200).json({ success: true, data: machines });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 
+// Phê duyệt phiếu mượn kèm danh sách ID máy
+const approveBorrow = async (req, res) => {
+    const { id } = req.params;
+    const { machineIds } = req.body; // Mảng các ID máy tính admin đã tick
+
+    try {
+        if (!machineIds || machineIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'Phải chọn ít nhất 1 máy để cấp phát!' });
+        }
+        await assetsService.approveBorrowRequest(id, machineIds);
+        res.status(200).json({ success: true, message: 'Đã duyệt và cấp phát máy thành công!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 module.exports = {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
   listComputers, getComputer, createComputer, updateComputer, deleteComputer,
   listImportReceipts, createImportReceipt,
-  borrowMachine, getBorrowHistory, deleteBorrowRequest,
-  transferMachines, getTransferHistory,scanLecturerMachine
+  borrowMachine, getBorrowHistory, deleteBorrowRequest, 
+  transferMachines, getTransferHistory,scanLecturerMachine, getAvailableMachines, approveBorrow
 };
