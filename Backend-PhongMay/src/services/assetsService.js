@@ -252,17 +252,65 @@ const transferMachines = async (data) => {
 
         const { ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu } = data;
         
-        await connection.query(
+        // 1. Lưu thông tin vào bảng lịch sử điều chuyển (BẢNG CHA)
+        const [resultLichSu] = await connection.query(
             `INSERT INTO lich_su_dieu_chuyen_may
-             (may_tinh_ids, ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-            [JSON.stringify(mayTinhIds), ma_phong_cu || null, ma_phong_moi || null, ma_nguoi_dieu_chuyen || null, ly_do || null, ghi_chu || null]
+             (ma_phong_cu, ma_phong_moi, ma_nguoi_dieu_chuyen, ly_do, ghi_chu, thoi_gian_dieu_chuyen, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
+            [ma_phong_cu || null, ma_phong_moi || null, ma_nguoi_dieu_chuyen || null, ly_do || null, ghi_chu || null]
         );
-        
-        await connection.query(`UPDATE may_tinh SET ma_phong = ? WHERE id IN (?)`, [ma_phong_moi || null, mayTinhIds]);
+        const lichSuId = resultLichSu.insertId;
+
+        // ================= LOGIC AUTO VỊ TRÍ & TÊN MÁY MỚI =================
+        // Lấy tên phòng mới (Ví dụ: "F7.1" hoặc "Kho")
+        const [phongMoi] = await connection.query(`SELECT ten_phong FROM phong_may WHERE id = ?`, [ma_phong_moi]);
+        const tenPhongMoi = phongMoi[0]?.ten_phong || 'PHONG';
+
+        // Đếm xem phòng mới đang có bao nhiêu cái máy để lấy số bắt đầu
+        const [countRes] = await connection.query(`SELECT COUNT(*) as total FROM may_tinh WHERE ma_phong = ?`, [ma_phong_moi]);
+        let currentCount = countRes[0].total;
+        // ===================================================================
+
+        // 2. Lưu từng máy tính vào bảng chi tiết & Cập nhật tên/vị trí
+        for (const idMay of mayTinhIds) {
+            
+            // Xử lý sinh Tên máy và Vị trí
+            currentCount++; 
+            // .padStart(2, '0') sẽ biến số 1 thành "01", số 9 thành "09", số 10 thành "10"
+            const viTriMoi = currentCount.toString().padStart(2, '0'); 
+            
+            // Ghép lại thành tên mới: F7.1-01
+            let tenMayMoi = `${tenPhongMoi}-${viTriMoi}`;
+
+            // Lưu ý UX: Nếu chuyển vào "KHO" thì có thể không cần vị trí
+            let viTriLuuDB = viTriMoi;
+            if (tenPhongMoi.toLowerCase().includes('kho')) {
+                // Nếu vào Kho thì đặt tên là KHO-01, nhưng vị trí trong Kho thường không xác định (tùy bác quyết định)
+                // viTriLuuDB = null; // Bỏ comment dòng này nếu muốn Kho thì vị trí = NULL
+            }
+
+            // Ghi vào bảng chi tiết điều chuyển
+            await connection.query(
+                `INSERT INTO chi_tiet_dieu_chuyen_may 
+                 (ma_lich_su_dieu_chuyen, ma_may_tinh, ghi_chu, created_at, updated_at)
+                 VALUES (?, ?, ?, NOW(), NOW())`,
+                [lichSuId, idMay, 'Hệ thống tự động chuyển và đổi tên']
+            );
+
+            // UPDATE BẢNG MÁY TÍNH: Phòng mới, Tên mới, Vị trí mới
+            await connection.query(
+                `UPDATE may_tinh 
+                 SET ma_phong = ?, 
+                     ten_may = ?, 
+                     vi_tri = ?, 
+                     updated_at = NOW() 
+                 WHERE id = ?`, 
+                [ma_phong_moi, tenMayMoi, viTriLuuDB, idMay]
+            );
+        }
         
         await connection.commit();
-        return { success: true, message: 'Chuyển máy thành công' };
+        return { success: true, message: 'Điều chuyển và cập nhật vị trí máy thành công' };
     } catch (error) {
         await connection.rollback();
         throw error;
@@ -272,7 +320,27 @@ const transferMachines = async (data) => {
 };
 
 const getTransferHistory = async () => {
-    const [rows] = await db.promise().query('SELECT * FROM lich_su_dieu_chuyen_may ORDER BY id DESC');
+    // SỬ DỤNG JOIN VÀ GROUP_CONCAT ĐỂ GOM MÃ MÁY TỪ BẢNG CHI TIẾT
+    const sql = `
+        SELECT 
+            ls.id,
+            ls.thoi_gian_dieu_chuyen,
+            ls.ly_do,
+            ls.ghi_chu,
+            pc.ten_phong AS tu_phong,
+            pm.ten_phong AS den_phong,
+            nd.ho_ten AS nguoi_dieu_chuyen,
+            GROUP_CONCAT(mt.ma_may SEPARATOR ', ') AS danh_sach_may
+        FROM lich_su_dieu_chuyen_may ls
+        LEFT JOIN phong_may pc ON ls.ma_phong_cu = pc.id
+        LEFT JOIN phong_may pm ON ls.ma_phong_moi = pm.id
+        LEFT JOIN nguoi_dung nd ON ls.ma_nguoi_dieu_chuyen = nd.id
+        LEFT JOIN chi_tiet_dieu_chuyen_may ct ON ls.id = ct.ma_lich_su_dieu_chuyen
+        LEFT JOIN may_tinh mt ON ct.ma_may_tinh = mt.id
+        GROUP BY ls.id
+        ORDER BY ls.thoi_gian_dieu_chuyen DESC
+    `;
+    const [rows] = await db.promise().query(sql);
     return rows;
 };
 
@@ -378,6 +446,168 @@ const approveBorrowRequest = async (phieuId, machineIds) => {
         connection.release();
     }
 };
+// ============================================================================
+// HÀM MỚI: XỬ LÝ TRẢ MÁY CỦA ADMIN (LƯU KÈM CHI TIẾT)
+// ============================================================================
+const createReturnTicket = async (data) => {
+    const { ma_phieu_muon_id, may_tinh_ids, ghi_chu, thoi_gian_tra } = data;
+    const so_luong_tra = may_tinh_ids.length; // Số lượng trả tính bằng mảng Admin đã tick
+    const connection = await db.promise().getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        // 1. Lấy thông tin phiếu mượn gốc
+        const [phieuMuon] = await connection.query('SELECT ma_giang_vien, so_luong FROM phieu_muon_may WHERE id = ?', [ma_phieu_muon_id]);
+        if (phieuMuon.length === 0) throw new Error('Phiếu mượn không tồn tại!');
+
+        const ma_giang_vien = phieuMuon[0].ma_giang_vien;
+        const current_so_luong = phieuMuon[0].so_luong;
+
+        // 2. Tạo Phiếu Trả Máy mới
+        const ma_phieu_tra = 'PT-' + Date.now().toString().slice(-6);
+        let formattedDate = thoi_gian_tra;
+        if (!formattedDate) {
+            const now = new Date();
+            now.setHours(now.getHours() + 7);
+            formattedDate = now.toISOString().slice(0, 19).replace('T', ' ');
+        } else if (formattedDate.includes('T')) {
+            formattedDate = formattedDate.slice(0, 19).replace('T', ' ');
+        }
+
+        // Bảng phieu_tra_may mới không còn cột trang_thai nữa
+        const queryPhieuTra = `
+            INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, ma_giang_vien, so_luong, ghi_chu, thoi_gian_tra, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        `;
+        const [resultTra] = await connection.execute(queryPhieuTra, [ma_phieu_tra, ma_phieu_muon_id, ma_giang_vien, so_luong_tra, ghi_chu, formattedDate]);
+        const phieuTraId = resultTra.insertId;
+
+        // 3. Xử lý nhả từng máy
+        for (const maMay of may_tinh_ids) {
+            const [may] = await connection.query('SELECT id FROM may_tinh WHERE ma_may = ?', [maMay]);
+
+            if (may.length > 0) {
+                const mayId = may[0].id;
+
+                // 3a. Lưu vào chi tiết phiếu trả
+                await connection.execute(
+                    `INSERT INTO chi_tiet_phieu_tra_may (ma_phieu_tra, ma_may_tinh, tinh_trang_khi_tra, created_at, updated_at)
+                     VALUES (?, ?, 'Hoạt động bình thường', NOW(), NOW())`,
+                    [phieuTraId, mayId]
+                );
+
+                // 3b. Mở khóa máy (Đang mượn -> Về kho Active)
+                await connection.execute(
+                    `UPDATE may_tinh SET trang_thai = 'active', updated_at = NOW() WHERE id = ?`,
+                    [mayId]
+                );
+
+                // 3c. Đánh dấu máy này trong chi tiết phiếu MƯỢN là 'Đã trả' để UI không cho tick nữa
+                await connection.execute(
+                    `UPDATE chi_tiet_phieu_muon_may SET tinh_trang_khi_muon = 'Đã trả' WHERE ma_phieu_muon = ? AND ma_may_tinh = ?`,
+                    [ma_phieu_muon_id, mayId]
+                );
+            }
+        }
+
+        // 4. Cập nhật lại số lượng nợ và trạng thái phiếu mượn gốc
+        const new_so_luong = current_so_luong - so_luong_tra;
+        const trang_thai_moi = new_so_luong <= 0 ? 'Đã trả' : 'Đang mượn';
+
+        await connection.execute(
+            `UPDATE phieu_muon_may SET so_luong = ?, trang_thai = ?, updated_at = NOW() WHERE id = ?`,
+            [new_so_luong < 0 ? 0 : new_so_luong, trang_thai_moi, ma_phieu_muon_id]
+        );
+
+        await connection.commit();
+        return { ma_phieu_tra, so_luong_con_lai: new_so_luong };
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
+
+// ==================== LỊCH SỬ MÁY CỤ THỂ ====================
+const getMachineHistory = async (machineId) => {
+    const [rows] = await db.promise().query(
+        `SELECT mt.*, pm.ten_phong FROM may_tinh mt 
+         LEFT JOIN phong_may pm ON mt.ma_phong = pm.id
+         WHERE mt.id = ?`,
+        [machineId]
+    );
+    return rows[0] || null;
+};
+
+// Lịch sử điều chuyển của máy cụ thể
+// Thay thế hàm getMachineTransferHistory cũ bằng hàm này
+const getMachineTransferHistory = async (machineId) => {
+    // JOIN qua bảng chi tiết để tìm đúng máy, đồng thời JOIN lấy tên phòng, tên người
+    const sql = `
+        SELECT 
+            ls.thoi_gian_dieu_chuyen, 
+            ls.ly_do, 
+            nd.ho_ten as nguoi_thao_tac,
+            pc.ten_phong as tu_phong, 
+            pm.ten_phong as den_phong
+        FROM chi_tiet_dieu_chuyen_may ct
+        JOIN lich_su_dieu_chuyen_may ls ON ct.ma_lich_su_dieu_chuyen = ls.id
+        LEFT JOIN phong_may pc ON ls.ma_phong_cu = pc.id
+        LEFT JOIN phong_may pm ON ls.ma_phong_moi = pm.id
+        LEFT JOIN nguoi_dung nd ON ls.ma_nguoi_dieu_chuyen = nd.id
+        WHERE ct.ma_may_tinh = ?
+        ORDER BY ls.thoi_gian_dieu_chuyen DESC
+    `;
+    const [rows] = await db.promise().query(sql, [machineId]);
+    return rows;
+};
+
+// Lịch sử mượn của máy cụ thể
+const getMachineBorrowHistory = async (machineId) => {
+    const [rows] = await db.promise().query(
+        `SELECT DISTINCT 
+            pm.id, pm.ma_phieu_muon, pm.ngay_muon, pm.trang_thai, 
+            pm.ma_phong_ban, pb.ten_phong_ban,
+            cpm.tinh_trang_khi_muon, cpm.ghi_chu
+         FROM chi_tiet_phieu_muon_may cpm
+         JOIN phieu_muon_may pm ON cpm.ma_phieu_muon = pm.id
+         LEFT JOIN phong_ban pb ON pm.ma_phong_ban = pb.id
+         WHERE cpm.ma_may_tinh = ?
+         ORDER BY pm.ngay_muon DESC`,
+        [machineId]
+    );
+    return rows;
+};
+
+// Lịch sử trả của máy cụ thể
+const getMachineReturnHistory = async (machineId) => {
+    const [rows] = await db.promise().query(
+        `SELECT DISTINCT 
+            pt.id, pt.ma_phieu_tra, pt.thoi_gian_tra, pt.trang_thai, pt.ghi_chu,
+            pm.ma_phieu_muon, cpt.tinh_trang_khi_tra
+         FROM chi_tiet_phieu_tra_may cpt
+         JOIN phieu_tra_may pt ON cpt.ma_phieu_tra = pt.id
+         LEFT JOIN phieu_muon_may pm ON pt.ma_phieu_muon = pm.id
+         WHERE cpt.ma_may_tinh = ?
+         ORDER BY pt.thoi_gian_tra DESC`,
+        [machineId]
+    );
+    return rows;
+};
+
+// Lịch sử bảo trì của máy cụ thể
+const getMachineMaintenanceHistory = async (machineId) => {
+    const [rows] = await db.promise().query(
+        `SELECT * FROM bao_cao_su_co 
+         WHERE ma_may_tinh = ?
+         ORDER BY created_at DESC`,
+        [machineId]
+    );
+    return rows;
+};
+
 module.exports = {
     listRooms,
     getRoomById,
@@ -393,11 +623,17 @@ module.exports = {
     createImportReceipt,
     transferMachines,
     getTransferHistory,
+    getMachineHistory,
+    getMachineTransferHistory,
+    getMachineBorrowHistory,
+    getMachineReturnHistory,
+    getMachineMaintenanceHistory,
     getEquipments,
     createEquipment,
     updateEquipment,
     deleteEquipment,
     scanLecturerMachine,
     getAvailableMachinesForBorrow,
-    approveBorrowRequest
+    approveBorrowRequest,
+    createReturnTicket
 };

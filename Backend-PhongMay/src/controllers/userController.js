@@ -18,25 +18,64 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
+  // ==========================================
+  // 1. TẠO MỚI NGƯỜI DÙNG
+  // ==========================================
   createUser: async (req, res, next) => {
     try {
-      // Nhận thêm biến so_dien_thoai nếu Frontend có gửi lên
-      const { ho_ten, email, tai_khoan, ma_vai_tro, vai_tro_id, lop_hoc_id, mat_khau, so_dien_thoai, soDienThoai } = req.body;
+      // ĐÃ SỬA: Lấy thêm gioi_tinh và ngay_sinh từ req.body
+      const { 
+        ho_ten, email, tai_khoan, ma_vai_tro, vai_tro_id, 
+        lop_hoc_id, mat_khau, so_dien_thoai, soDienThoai, 
+        gioi_tinh, ngay_sinh 
+      } = req.body;
+      
       if (!ho_ten || !mat_khau) return res.status(400).json({ success: false, message: 'Thiếu trường bắt buộc' });
       
       const roleValue = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
       const phone = (so_dien_thoai !== undefined) ? so_dien_thoai : soDienThoai;
       
-      // Hash mật khẩu trước khi tạo (để đảm bảo bảo mật giống đăng nhập)
+      // Hash mật khẩu trước khi tạo
       const hashedPassword = await bcrypt.hash(mat_khau, 12);
 
       const created = await userService.createUser({ 
         ho_ten, email, tai_khoan, roleValue, lop_hoc_id, 
-        mat_khau: hashedPassword, // Lưu mật khẩu đã mã hóa
-        so_dien_thoai: phone 
+        mat_khau: hashedPassword, 
+        so_dien_thoai: phone,
+        gioi_tinh: gioi_tinh, // Gắn vào payload truyền xuống DB
+        ngay_sinh: ngay_sinh  // Gắn vào payload truyền xuống DB
       });
       
       res.status(201).json({ success: true, message: 'Tạo người dùng thành công', id: created.id, data: created });
+    } catch (err) { next(err); }
+  },
+
+  // ==========================================
+  // 2. CẬP NHẬT NGƯỜI DÙNG
+  // ==========================================
+  updateUser: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      // ĐÃ SỬA: Lấy thêm gioi_tinh và ngay_sinh từ req.body
+      const { 
+        ho_ten, ma_vai_tro, vai_tro_id, lop_hoc_id, 
+        so_dien_thoai, soDienThoai, gioi_tinh, ngay_sinh 
+      } = req.body;
+      
+      const roleValue = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
+      const phone = (so_dien_thoai !== undefined) ? so_dien_thoai : soDienThoai;
+
+      const affected = await userService.updateUser(id, { 
+        ho_ten, 
+        roleValue, 
+        lop_hoc_id, 
+        so_dien_thoai: phone,
+        gioi_tinh: gioi_tinh, // Gắn vào payload truyền xuống DB
+        ngay_sinh: ngay_sinh  // Gắn vào payload truyền xuống DB
+      });
+      
+      if (affected === 0) return res.status(404).json({ success: false, message: 'Người dùng không tồn tại hoặc không có thay đổi' });
+      res.json({ success: true, message: 'Cập nhật người dùng thành công' });
     } catch (err) { next(err); }
   },
 
@@ -57,23 +96,7 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  updateUser: async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      // Không lấy email/tai_khoan nữa, lấy thêm số điện thoại
-      const { ho_ten, ma_vai_tro, vai_tro_id, lop_hoc_id, so_dien_thoai, soDienThoai } = req.body;
-      
-      const roleValue = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
-      const phone = (so_dien_thoai !== undefined) ? so_dien_thoai : soDienThoai;
-
-      const affected = await userService.updateUser(id, { 
-        ho_ten, roleValue, lop_hoc_id, so_dien_thoai: phone 
-      });
-      
-      if (affected === 0) return res.status(404).json({ success: false, message: 'Người dùng không tồn tại hoặc không có thay đổi' });
-      res.json({ success: true, message: 'Cập nhật người dùng thành công' });
-    } catch (err) { next(err); }
-  },
+ 
 
   resetPassword: async (req, res, next) => {
     try {

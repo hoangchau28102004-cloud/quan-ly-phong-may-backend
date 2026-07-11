@@ -99,7 +99,6 @@ const updateComputer = async (req, res) => {
   }
 };
 
-// 🚀 SỬA TRIỆT ĐỂ: TRẢ LỖI JSON KHI XÓA THẤT BẠI
 const deleteComputer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,17 +124,11 @@ const listImportReceipts = async (req, res) => {
   }
 };
 
-// 🚀 SỬA TRIỆT ĐỂ: CATCH LỖI TẠO PHIẾU
 const createImportReceipt = async (req, res) => {
   try {
-    console.log("=========================================");
-    console.log("📦 DỮ LIỆU FLUTTER GỬI XUỐNG API CREATE IMPORT:");
-    console.log(JSON.stringify(req.body, null, 2));
-    console.log("=========================================");
     const result = await assetsService.createImportReceipt(req.body);
     return res.status(201).json(result);
   } catch (err) {
-    
     console.error("Lỗi API createImportReceipt:", err.message);
     return res.status(400).json({
       success: false,
@@ -162,46 +155,26 @@ const getTransferHistory = async (req, res) => {
   }
 };
 
-const formatToMySQLDate = (date) => {
-  return new Date(date).toISOString().slice(0, 19).replace('T', ' ');
-};
-
+// ======================= LỊCH SỬ MƯỢN MÁY =======================
 const borrowMachine = async (req, res, next) => {
   try {
-    const { nguoi_dung_id, so_luong, ly_do_muon, ghi_chu, ngay_muon } = req.body;
-    const conn = db.promise();
-
-    const [gv] = await conn.query('SELECT id, ma_phong_ban FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
-    if (gv.length === 0) return res.status(400).json({ success: false, message: 'Tài khoản không hợp lệ!' });
-
-    const ma_phieu_muon = 'PM-' + Date.now().toString().slice(-6);
-    const formattedDate = formatToMySQLDate(ngay_muon || new Date());
-
-    const sql = `INSERT INTO phieu_muon_may 
-                 (ma_phieu_muon, ma_giang_vien, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, trang_thai, ghi_chu)
-                 VALUES (?, ?, ?, ?, ?, ?, 'Đang mượn', ?)`;
-                 
-    await conn.query(sql, [ma_phieu_muon, gv[0].id, gv[0].ma_phong_ban || 1, formattedDate, so_luong, ly_do_muon, ghi_chu]);
-
-    res.status(201).json({ success: true, message: 'Gửi yêu cầu mượn thiết bị thành công!' });
+    res.status(400).json({ success: false, message: 'Vui lòng dùng API mới /muon-may' });
   } catch (error) {
-    console.error("LỖI MƯỢN MÁY:", error);
     next(error);
   }
 };
 
 const getBorrowHistory = async (req, res, next) => {
   try {
-    const { nguoi_dung_id } = req.query;
     const conn = db.promise();
-    const [gv] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
-    
-    if (gv.length === 0) return res.json({ success: true, data: [] });
-
-    const [rows] = await conn.query(
-      'SELECT * FROM phieu_muon_may WHERE ma_giang_vien = ? ORDER BY ngay_muon DESC', 
-      [gv[0].id] 
-    );
+    // 🚀 SỬA LỖI: Lấy thẳng danh sách toàn bộ phiếu mượn cho Admin quản lý
+    const sql = `
+      SELECT pm.*, pb.ten_phong_ban 
+      FROM phieu_muon_may pm
+      LEFT JOIN phong_ban pb ON pm.ma_phong_ban = pb.id
+      ORDER BY pm.ngay_muon DESC
+    `;
+    const [rows] = await conn.query(sql);
     res.json({ success: true, data: rows });
   } catch (error) {
     next(error);
@@ -228,38 +201,44 @@ const deleteBorrowRequest = async (req, res, next) => {
 // ======================= TRẢ MÁY =======================
 const returnMachine = async (req, res, next) => {
   try {
-    const { nguoi_dung_id, so_luong, ghi_chu, thoi_gian_tra, ma_phieu_muon_id } = req.body;
+    // Đón lõng thêm biến machine_ids từ Flutter gửi lên
+    const { so_luong, ghi_chu, thoi_gian_tra, ma_phieu_muon_id, machine_ids } = req.body; 
     const conn = db.promise();
 
     const [pm] = await conn.query('SELECT so_luong FROM phieu_muon_may WHERE id = ?', [ma_phieu_muon_id]);
     if (pm.length === 0) return res.status(404).json({ success: false, message: 'Phiếu mượn không tồn tại!' });
     
     const soLuongHienTai = pm[0].so_luong;
-
-    const [gv] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
-    if (gv.length === 0) return res.status(400).json({ success: false, message: 'Giảng viên không tồn tại!' });
-
     const ma_phieu_tra = 'PT-' + Date.now().toString().slice(-6);
     const dateToSave = thoi_gian_tra ? new Date(thoi_gian_tra).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // 1. Insert phiếu trả
+    // 1. Lưu phiếu trả tổng
     const sql = `INSERT INTO phieu_tra_may 
                  (ma_phieu_tra, ma_phieu_muon, ma_giang_vien, thoi_gian_tra, so_luong, trang_thai, ghi_chu) 
-                 VALUES (?, ?, ?, ?, ?, 'pending', ?)`;
-    await conn.query(sql, [ma_phieu_tra, ma_phieu_muon_id, gv[0].id, dateToSave, so_luong, ghi_chu]);
+                 VALUES (?, ?, NULL, ?, ?, 'confirmed', ?)`;
+    const [resultPt] = await conn.query(sql, [ma_phieu_tra, ma_phieu_muon_id, dateToSave, so_luong, ghi_chu]);
+    const idPhieuTra = resultPt.insertId;
 
-    // 2. Cập nhật phiếu mượn
-    const soLuongConLai = soLuongHienTai - so_luong;
-    
-    if (soLuongConLai <= 0) {
-      // Nếu trả hết -> Đã trả
-      await conn.query(`UPDATE phieu_muon_may SET so_luong = 0, trang_thai = 'Đã trả' WHERE id = ?`, [ma_phieu_muon_id]);
-    } else {
-      // Nếu còn nợ -> Chờ duyệt trả
-      await conn.query(`UPDATE phieu_muon_may SET so_luong = ?, trang_thai = 'Chờ duyệt trả' WHERE id = ?`, [soLuongConLai, ma_phieu_muon_id]);
+    // 2. LƯU CHI TIẾT TỪNG MÁY TRẢ
+    if (machine_ids && machine_ids.length > 0) {
+      for (const mId of machine_ids) {
+        await conn.query(
+          `INSERT INTO chi_tiet_phieu_tra_may (ma_phieu_tra, ma_may_tinh, tinh_trang_khi_tra, created_at, updated_at) 
+           VALUES (?, ?, 'Bình thường', NOW(), NOW())`,
+          [idPhieuTra, mId]
+        );
+      }
     }
 
-    res.status(201).json({ success: true, message: 'Gửi yêu cầu trả thiết bị thành công!' });
+    // 3. Trừ nợ số lượng
+    const soLuongConLai = soLuongHienTai - so_luong;
+    if (soLuongConLai <= 0) {
+      await conn.query(`UPDATE phieu_muon_may SET so_luong = 0, trang_thai = 'Đã trả' WHERE id = ?`, [ma_phieu_muon_id]);
+    } else {
+      await conn.query(`UPDATE phieu_muon_may SET so_luong = ?, trang_thai = 'Đang mượn' WHERE id = ?`, [soLuongConLai, ma_phieu_muon_id]);
+    }
+
+    res.status(201).json({ success: true, message: 'Tạo phiếu trả máy thành công!' });
   } catch (error) {
     console.error("LỖI TRẢ MÁY:", error);
     next(error);
@@ -268,20 +247,16 @@ const returnMachine = async (req, res, next) => {
 
 const getReturnHistory = async (req, res, next) => {
   try {
-    const { nguoi_dung_id } = req.query;
     const conn = db.promise();
-    const [gv] = await conn.query('SELECT id FROM giang_vien WHERE ma_nguoi_dung = ?', [nguoi_dung_id]);
-    if (gv.length === 0) return res.json({ success: true, data: [] });
-
+    // 🚀 SỬA LỖI: Lấy danh sách lịch sử trả cho Admin (Không kiểm tra tài khoản nữa)
     const sql = `
       SELECT pt.id, pt.ma_phieu_tra, pt.thoi_gian_tra, pt.so_luong, pt.trang_thai, pt.ghi_chu, 
              pm.ma_phieu_muon AS ma_phieu_muon_goc
       FROM phieu_tra_may pt
       LEFT JOIN phieu_muon_may pm ON pt.ma_phieu_muon = pm.id
-      WHERE pt.ma_giang_vien = ? 
       ORDER BY pt.thoi_gian_tra DESC
     `;
-    const [rows] = await conn.query(sql, [gv[0].id]);
+    const [rows] = await conn.query(sql);
     res.json({ success: true, data: rows });
   } catch (error) {
     next(error);
@@ -290,23 +265,16 @@ const getReturnHistory = async (req, res, next) => {
 
 const confirmReturnRequest = async (req, res, next) => {
   try {
-    const { id } = req.params; // ID của phiếu trả (phieu_tra_may)
+    const { id } = req.params;
     const conn = db.promise();
 
-    // 1. Lấy thông tin phiếu trả và phiếu mượn gốc
     const [pt] = await conn.query('SELECT ma_phieu_muon, so_luong FROM phieu_tra_may WHERE id = ?', [id]);
     if (pt.length === 0) return res.status(404).json({ success: false, message: 'Phiếu không tồn tại' });
 
     const { ma_phieu_muon, so_luong } = pt[0];
 
-    // 2. Trừ số lượng ở phiếu mượn gốc
-    // UPDATE phieu_muon_may SET so_luong = so_luong - ? WHERE id = ?
     await conn.query('UPDATE phieu_muon_may SET so_luong = so_luong - ? WHERE id = ?', [so_luong, ma_phieu_muon]);
-
-    // 3. Cập nhật trạng thái phiếu trả thành 'confirmed'
     await conn.query('UPDATE phieu_tra_may SET trang_thai = "confirmed" WHERE id = ?', [id]);
-
-    // 4. Nếu phiếu mượn gốc về 0, cập nhật trạng thái phiếu mượn thành 'Đã trả hết'
     await conn.query('UPDATE phieu_muon_may SET trang_thai = "Đã trả" WHERE id = ? AND so_luong <= 0', [ma_phieu_muon]);
 
     res.json({ success: true, message: 'Đã duyệt trả máy thành công!' });
@@ -320,7 +288,6 @@ const cancelReturnRequest = async (req, res, next) => {
     const { id } = req.params;
     const conn = db.promise();
     
-    // 1. Lấy thông tin phiếu trả trước khi xóa để biết nó đã trừ bao nhiêu máy
     const [pt] = await conn.query('SELECT ma_phieu_muon, so_luong FROM phieu_tra_may WHERE id = ? AND trang_thai = "pending"', [id]);
     
     if (pt.length === 0) {
@@ -329,10 +296,7 @@ const cancelReturnRequest = async (req, res, next) => {
 
     const { ma_phieu_muon, so_luong } = pt[0];
 
-    // 2. Cộng ngược lại số lượng vào phiếu mượn gốc
     await conn.query('UPDATE phieu_muon_may SET so_luong = so_luong + ?, trang_thai = "Đang mượn" WHERE id = ?', [so_luong, ma_phieu_muon]);
-
-    // 3. Xóa phiếu trả
     await conn.query('DELETE FROM phieu_tra_may WHERE id = ?', [id]);
 
     res.json({ success: true, message: 'Đã hủy yêu cầu và hoàn trả số lượng vào phiếu mượn!' });
@@ -340,6 +304,7 @@ const cancelReturnRequest = async (req, res, next) => {
     next(error);
   }
 };
+
 const scanLecturerMachine = async (req, res, next) => {
     try {
         const { qrCode } = req.body;
@@ -351,7 +316,7 @@ const scanLecturerMachine = async (req, res, next) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
-// Lấy danh sách máy khả dụng
+
 const getAvailableMachines = async (req, res) => {
     try {
         const machines = await assetsService.getAvailableMachinesForBorrow();
@@ -361,10 +326,9 @@ const getAvailableMachines = async (req, res) => {
     }
 };
 
-// Phê duyệt phiếu mượn kèm danh sách ID máy
 const approveBorrow = async (req, res) => {
     const { id } = req.params;
-    const { machineIds } = req.body; // Mảng các ID máy tính admin đã tick
+    const { machineIds } = req.body;
 
     try {
         if (!machineIds || machineIds.length === 0) {
@@ -376,10 +340,65 @@ const approveBorrow = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+const getBorrowTicketDetails = async (req, res, next) => {
+  try {
+    const { id } = req.params; 
+    const conn = db.promise();
+    
+    // Chỉ lấy những máy ĐÃ MƯỢN nhưng CHƯA TRẢ (not in chi_tiet_phieu_tra_may)
+    const sql = `
+      SELECT ct.id, ct.ma_may_tinh, mt.ma_may, mt.ten_may, ct.tinh_trang_khi_muon 
+      FROM chi_tiet_phieu_muon_may ct
+      JOIN may_tinh mt ON ct.ma_may_tinh = mt.id
+      WHERE ct.ma_phieu_muon = ?
+      AND ct.ma_may_tinh NOT IN (
+          SELECT ctp.ma_may_tinh
+          FROM chi_tiet_phieu_tra_may ctp
+          JOIN phieu_tra_may pt ON ctp.ma_phieu_tra = pt.id
+          WHERE pt.ma_phieu_muon = ?
+      )
+    `;
+    
+    // Truyền tham số id 2 lần cho 2 dấu chấm hỏi
+    const [rows] = await conn.query(sql, [id, id]); 
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error("Lỗi lấy chi tiết phiếu mượn:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// THÊM HÀM NÀY VÀO CONTROLLER
+const getMachineAllHistory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // TẬN DỤNG 100% CÁC HÀM SERVICE ĐÃ CÓ SẴN CỦA BÁC
+    const transferHistory = await assetsService.getMachineTransferHistory(id);
+    const borrowHistory = await assetsService.getMachineBorrowHistory(id);
+    const returnHistory = await assetsService.getMachineReturnHistory(id);
+    const maintenanceHistory = await assetsService.getMachineMaintenanceHistory(id);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        dieu_chuyen: transferHistory,
+        muon_may: borrowHistory,
+        tra_may: returnHistory,
+        sua_chua: maintenanceHistory
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
   listComputers, getComputer, createComputer, updateComputer, deleteComputer,
   listImportReceipts, createImportReceipt,
   borrowMachine, getBorrowHistory, deleteBorrowRequest,
-  transferMachines, getTransferHistory, scanLecturerMachine, returnMachine,getReturnHistory, cancelReturnRequest,confirmReturnRequest, getAvailableMachines, approveBorrow
+  transferMachines, getTransferHistory, scanLecturerMachine, returnMachine,
+  getReturnHistory, cancelReturnRequest,confirmReturnRequest, getAvailableMachines, 
+  approveBorrow, getBorrowTicketDetails, getMachineAllHistory
 };

@@ -15,7 +15,7 @@ const borrowReturnRoutes = require('./routes/borrowReturnRoutes');
 const importRoutes = require('./routes/importRoutes');
 const issueRoutes = require('./routes/issueRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
-
+const departmentRoutes = require('./routes/departmentRoutes');
 const app = express();
 
 // Enable CORS and allow Authorization header for dev frontend
@@ -39,11 +39,11 @@ app.use('/api/phong-may', roomRoutes);
 app.use('/api', userRoutes);
 app.use('/api', assetsRoutes);
 app.use('/api', maintenanceRoutes);
-app.use('/api', borrowReturnRoutes);
+app.use('/api/borrow-return', borrowReturnRoutes); 
 app.use('/api', importRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/issues', issueRoutes);
-
+app.use('/api', departmentRoutes);
 
 // Middleware bắt lỗi chung
 app.use((err, req, res, next) => {

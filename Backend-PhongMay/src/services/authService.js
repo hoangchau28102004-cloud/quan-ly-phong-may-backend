@@ -29,15 +29,13 @@ const login = async (taiKhoan, matKhau) => {
         return { success: false, message: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Quản trị viên.' };
       }
 
-      // 2. CƠ CHẾ KIỂM TRA MẬT KHẨU THÔNG MINH (Chống lỗi plain text)
+      // 2. Kiểm tra mật khẩu (hỗ trợ cả hash bcrypt và text trơn)
       let isMatch = false;
       const dbPassword = user.mat_khau || '';
 
       if (dbPassword.startsWith('$2a$') || dbPassword.startsWith('$2b$') || dbPassword.startsWith('$2y$')) {
-        // Nếu trong DB là chuỗi hash Bcrypt chuẩn
         isMatch = await bcrypt.compare(matKhau, dbPassword);
       } else {
-        // Nếu trong DB lỡ bị lưu chữ thô (Ví dụ như chữ '123' của Admin hiện tại)
         isMatch = (matKhau === dbPassword);
       }
       
@@ -45,16 +43,30 @@ const login = async (taiKhoan, matKhau) => {
         return { success: false, message: 'Sai tài khoản hoặc mật khẩu' };
       }
 
-      // 3. Cấp Token đăng nhập
       const JWT_SECRET = process.env.JWT_SECRET || 'secret';
       const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+      // =================================================================
+      // 3. MAPPING LẠI ID ĐỂ FIX LỖI FLUTTER (KHÚC NÀY LÀ QUAN TRỌNG NHẤT)
+      // =================================================================
+      let roleName = (user.ten_vai_tro || 'student').toLowerCase();
+      let mappedRoleId = user.ma_vai_tro || user.vai_tro_id;
+      
+      // Dịch ID mới của Laravel Web về ID cũ của Flutter
+      if (roleName === 'admin') {
+          mappedRoleId = 1;
+      } else if (roleName === 'student') {
+          mappedRoleId = 2;
+      } else if (roleName === 'teacher') {
+          mappedRoleId = 3;
+      }
 
       const payload = {
         id: user.id,
         email: user.email || user.tai_khoan || null,
         ho_ten: user.ho_ten || null,
-        ma_vai_tro: user.ma_vai_tro || user.vai_tro_id || null,
-        role: user.ten_vai_tro || null
+        ma_vai_tro: mappedRoleId, // <- Đã faked ID chuẩn gửi cho Flutter
+        role: roleName
       };
 
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -64,7 +76,7 @@ const login = async (taiKhoan, matKhau) => {
         message: 'Đăng nhập thành công',
         token,
         data: payload,
-        role: (user.ten_vai_tro || 'student').toLowerCase()
+        role: roleName
       };
     }
 
