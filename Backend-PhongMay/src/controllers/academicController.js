@@ -44,12 +44,6 @@ const getStudentsByModule = (req, res, next) => handleResponse(res, next, async 
 const addStudentToModule = (req, res, next) => handleResponse(res, next, () => service.addStudentToModule(req.params.moduleId, req.body.studentId));
 const removeStudentFromModule = (req, res, next) => handleResponse(res, next, () => service.removeStudentFromModule(req.params.moduleId, req.params.studentId));
 
-const getStudentDashboard = async (req, res) => {
-    try {
-        const dashboardData = await service.getStudentDashboardData(req.params.id);
-        res.status(200).json({ success: true, data: dashboardData });
-    } catch (error) { res.status(500).json({ success: false, message: 'Lỗi máy chủ' }); }
-};
 
 // =========================================================================
 // --- TÍNH NĂNG MỚI: API NĂM HỌC VÀ TUẦN ---
@@ -65,7 +59,6 @@ module.exports = {
     getModules, createModule, updateModule, deleteModule,
     getTeachers, 
     getStudentsByClass, getAvailableStudents, addStudentToClass, removeStudentFromClass,
-    getStudentsByModule, addStudentToModule, removeStudentFromModule, getStudentDashboard,
-    // Export các api mới
+    getStudentsByModule, addStudentToModule, removeStudentFromModule, 
     getAcademicYears, createAcademicYear, deleteAcademicYear, getWeeksByYear
 };

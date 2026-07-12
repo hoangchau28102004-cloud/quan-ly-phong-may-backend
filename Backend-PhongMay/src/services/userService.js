@@ -127,6 +127,43 @@ const createUser = async ({ ho_ten, email, tai_khoan, roleValue, lop_hoc_id, mat
   return null;
 };
 
+    // --- DASHBOARD SINH VIÊN ---
+    
+
+const getStudentDashboardData= async (userId) => {
+        try {
+            // 1. Lấy ID sinh viên từ bảng sinh_vien
+            const [svRows] = await db.promise().query('SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?', [userId]);
+            if (svRows.length === 0) return { coursesCount: 0, upcoming: [], recentAttendance: [], recentIncidents: [] };
+            
+            const sinhVienId = svRows[0].id;
+
+            // 2. Query lấy dữ liệu (Phải dùng await)
+            const [[{ coursesCount }]] = await db.promise().query('SELECT COUNT(*) as coursesCount FROM chi_tiet_lop_hoc_phan WHERE ma_sinh_vien = ?', [sinhVienId]);
+            
+            const [upcoming] = await db.promise().query(`
+                SELECT mh.ten_mon, ls.ngay_hoc_cu_the as thoi_gian, pm.ten_phong as phong 
+                FROM lich_su_dung_phong_may ls
+                JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+                JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+                JOIN phong_may pm ON ls.ma_phong = pm.id
+                JOIN chi_tiet_lop_hoc_phan ctlhp ON lhp.id = ctlhp.ma_lop_hoc_phan
+                WHERE ctlhp.ma_sinh_vien = ? AND ls.ngay_hoc_cu_the >= CURDATE()
+                LIMIT 5`, [sinhVienId]);
+
+            const [recentAttendance] = await db.promise().query(`
+                SELECT mh.ten_mon, dd.trang_thai, dd.thoi_gian_check_in as thoi_gian 
+                FROM diem_danh dd
+                JOIN lop_hoc_phan lhp ON dd.ma_lop_hoc_phan = lhp.id
+                JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+                WHERE dd.ma_sinh_vien = ?
+                ORDER BY dd.thoi_gian_check_in DESC LIMIT 5`, [sinhVienId]);
+
+            return { coursesCount, upcoming, recentAttendance, recentIncidents: [] };
+        } catch (e) {
+            throw new Error("Lỗi Database: " + e.message);
+        }
+    };
 const updateUser = async (id, { ho_ten, roleValue, lop_hoc_id, so_dien_thoai, gioi_tinh, ngay_sinh }) => {
   const conn = db.promise();
   const { roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
@@ -208,4 +245,5 @@ module.exports = {
   deleteUser,
   getRoles,
   createUsersBulk,
+  getStudentDashboardData
 };

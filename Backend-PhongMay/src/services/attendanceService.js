@@ -55,6 +55,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
         );
 
         return {
+            id: computer.id,
             diem_danh_id: currentRecord.id,
             ten_may: computer.ten_may,
             vi_tri: computer.vi_tri,
@@ -76,6 +77,7 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
     );
 
     return {
+        id: computer.id,
         diem_danh_id: result.insertId,
         ten_may: computer.ten_may,
         vi_tri: computer.vi_tri,
@@ -89,23 +91,81 @@ const checkInWithQR = async (userId, scheduleId, qrCode) => {
     };
 };
 
-// 2. Kéo danh sách sinh viên thật dựa vào lịch dạy (Hàm mới thêm vào)
+
+// 2. LẤY DANH SÁCH ĐIỂM DANH (CÓ KIỂM TRA ĐÃ QUÉT QR HAY CHƯA & TRẠNG THÁI KHÓA)
 const getStudentsBySchedule = async (scheduleId) => {
-    const sql = `
-        SELECT DISTINCT sv.ma_sinh_vien as maSV, nd.ho_ten as hoTen, 'present' as status
-        FROM lich_su_dung_phong_may ls
-        LEFT JOIN chi_tiet_lop_hoc_phan ct ON ls.ma_lop_hoc_phan = ct.ma_lop_hoc_phan
-        LEFT JOIN sinh_vien sv ON (sv.id = ct.ma_sinh_vien OR sv.ma_lop = ls.ma_lop)
-        JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
-        WHERE ls.id = ? AND sv.id IS NOT NULL AND sv.ma_sinh_vien IS NOT NULL
-        ORDER BY nd.ho_ten ASC
-    `;
-    const [students] = await db.promise().query(sql, [scheduleId]);
-    return students;
+    const conn = await db.promise().getConnection();
+    try {
+        // Lấy thông tin buổi học xem đã chốt (completed) chưa
+        const [lichRows] = await conn.query(
+            `SELECT ma_lop_hoc_phan, trang_thai FROM lich_su_dung_phong_may WHERE id = ?`, 
+            [scheduleId]
+        );
+        if (lichRows.length === 0) throw new Error('Không tìm thấy lịch học');
+        
+        const lichHoc = lichRows[0];
+        const isLocked = lichHoc.trang_thai === 'completed'; // Đã lưu là khóa
+
+        // Lấy danh sách SV + check bảng diem_danh xem ai đã quét
+        const sql = `
+            SELECT 
+                sv.id AS ma_sinh_vien, 
+                sv.ma_sinh_vien AS mssv, 
+                nd.ho_ten,
+                IFNULL(dd.trang_thai, 'absent') AS trang_thai
+            FROM chi_tiet_lop_hoc_phan ct
+            JOIN sinh_vien sv ON ct.ma_sinh_vien = sv.id
+            JOIN nguoi_dung nd ON sv.ma_nguoi_dung = nd.id
+            LEFT JOIN diem_danh dd ON dd.ma_sinh_vien = sv.id AND dd.ma_lich_su_dung = ?
+            WHERE ct.ma_lop_hoc_phan = ?
+            ORDER BY sv.ma_sinh_vien ASC
+        `;
+        const [students] = await conn.query(sql, [scheduleId, lichHoc.ma_lop_hoc_phan]);
+
+        return { is_locked: isLocked, students };
+    } finally {
+        conn.release();
+    }
 };
 
-// 3. XUẤT MODULE PHẢI NẰM DƯỚI CÙNG
+// 3. LƯU ĐIỂM DANH XUỐNG DB VÀ KHÓA BUỔI HỌC
+const saveAttendance = async (ma_lich_su_dung, danh_sach_diem_danh) => {
+    const conn = await db.promise().getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // Chốt buổi học (Khóa không cho sửa nữa)
+        await conn.query(
+            `UPDATE lich_su_dung_phong_may SET trang_thai = 'completed' WHERE id = ?`, 
+            [ma_lich_su_dung]
+        );
+
+        // Xóa các điểm danh cũ của buổi này (để ghi đè bản mới nhất của GV)
+        await conn.query(`DELETE FROM diem_danh WHERE ma_lich_su_dung = ?`, [ma_lich_su_dung]);
+
+        // Insert loạt điểm danh mới
+        if (danh_sach_diem_danh && danh_sach_diem_danh.length > 0) {
+            const values = danh_sach_diem_danh.map(sv => [
+                ma_lich_su_dung, sv.ma_sinh_vien, sv.trang_thai
+            ]);
+            await conn.query(
+                `INSERT INTO diem_danh (ma_lich_su_dung, ma_sinh_vien, trang_thai) VALUES ?`,
+                [values]
+            );
+        }
+
+        await conn.commit();
+        return { message: 'Lưu điểm danh thành công' };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
 module.exports = {
     checkInWithQR,
+    saveAttendance,
     getStudentsBySchedule
 };

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const db = require('../config/db');
 const userController = require('../controllers/userController');
 
 // Lấy danh sách và Tạo mới
@@ -17,5 +18,6 @@ router.delete('/users/:id', userController.deleteUser);
 
 // Lấy danh sách vai trò
 router.get('/roles', userController.getRoles);
+router.get('/student-dashboard/:userId', userController.getStudentDashboard);
 
 module.exports = router;

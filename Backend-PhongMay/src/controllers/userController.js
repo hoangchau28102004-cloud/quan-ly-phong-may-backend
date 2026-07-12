@@ -1,5 +1,6 @@
 const userService = require('../services/userService');
 const bcrypt = require('bcryptjs'); // Thêm thư viện mã hóa mật khẩu
+const academicService = require('../services/academicService');
 
 const UserController = {
   listUsers: async (req, res, next) => {
@@ -138,6 +139,26 @@ const UserController = {
       if (affected === 0) return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
       res.json({ success: true, message: 'Đã xóa tài khoản thành công' });
     } catch (err) { next(err); }
+  },
+   getStudentDashboard : async (req, res) => {
+    try {
+        // 🚀 SỬA 1: Lấy đúng tên tham số là userId (khớp với router)
+        const userId = req.params.userId;
+        
+        // 🚀 SỬA 2: Gọi đúng tên userService đã khai báo ở đầu file
+        const dashboardData = await userService.getStudentDashboardData(userId);
+        
+        res.status(200).json({ 
+            success: true, 
+            data: dashboardData 
+        });
+    } catch (error) {
+        console.error("🔥 ERROR CHI TIẾT:", error); 
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
   },
 
   getRoles: async (req, res, next) => {

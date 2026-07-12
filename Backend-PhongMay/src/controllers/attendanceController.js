@@ -53,6 +53,21 @@ const getStudentsBySchedule = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+const saveAttendance = async (req, res) => {
+    try {
+        const { schedule_id, danh_sach } = req.body;
+        
+        if (!schedule_id || !Array.isArray(danh_sach)) {
+            return res.status(400).json({ success: false, message: 'Dữ liệu điểm danh không hợp lệ' });
+        }
+
+        const result = await attendanceService.saveAttendance(schedule_id, danh_sach);
+        res.status(200).json({ success: true, message: result.message });
+    } catch (error) {
+        console.error("Lỗi lưu điểm danh:", error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 module.exports = {
-    scanQRCheckIn,getStudentsBySchedule
+    scanQRCheckIn,getStudentsBySchedule,saveAttendance
 };

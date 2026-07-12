@@ -184,39 +184,6 @@ const AcademicService = {
         return result.affectedRows;
     },
 
-    // --- DASHBOARD SINH VIÊN ---
-    getStudentDashboardData : async (userId) => {
-        const [[{ coursesCount }]] = await db.promise().query(`
-            SELECT COUNT(ctlhp.id) as coursesCount 
-            FROM chi_tiet_lop_hoc_phan ctlhp
-            JOIN sinh_vien sv ON ctlhp.ma_sinh_vien = sv.id
-            WHERE sv.ma_nguoi_dung = ? AND ctlhp.trang_thai = 'active'
-        `, [userId]);
-
-        const [upcoming] = await db.promise().query(`
-            SELECT mh.ten_mon, CONCAT('Tiết ', ls.so_tiet_bat_dau, '-', ls.so_tiet_ket_thuc, ' ', DATE_FORMAT(ls.ngay_hoc_cu_the, '%d/%m/%Y')) as thoi_gian, pm.ten_phong as phong
-            FROM lich_su_dung_phong_may ls
-            JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id JOIN mon_hoc mh ON lhp.ma_mon = mh.id JOIN phong_may pm ON ls.ma_phong = pm.id
-            JOIN chi_tiet_lop_hoc_phan ctlhp ON ctlhp.ma_lop_hoc_phan = lhp.id JOIN sinh_vien sv ON ctlhp.ma_sinh_vien = sv.id
-            WHERE sv.ma_nguoi_dung = ? AND ls.ngay_hoc_cu_the >= CURDATE()
-            ORDER BY ls.ngay_hoc_cu_the ASC LIMIT 3
-        `, [userId]);
-
-        const [recentAttendance] = await db.promise().query(`
-            SELECT mh.ten_mon, DATE_FORMAT(dd.thoi_gian_check_in, '%H:%i %d/%m/%Y') as thoi_gian, dd.trang_thai
-            FROM diem_danh dd
-            JOIN lich_su_dung_phong_may ls ON dd.ma_lich_su_dung = ls.id JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
-            JOIN mon_hoc mh ON lhp.ma_mon = mh.id JOIN sinh_vien sv ON dd.ma_sinh_vien = sv.id
-            WHERE sv.ma_nguoi_dung = ? ORDER BY dd.thoi_gian_check_in DESC LIMIT 3
-        `, [userId]);
-
-        const [[{ incidentsCount }]] = await db.promise().query(`
-            SELECT COUNT(id) as incidentsCount FROM bao_cao_su_co WHERE ma_nguoi_bao_cao = ? AND trang_thai = 'open'
-        `, [userId]);
-
-        return { coursesCount: coursesCount || 0, upcomingCount: upcoming.length, attendanceCount: recentAttendance.length, incidentsCount: incidentsCount || 0, upcoming, recentAttendance };
-    },
-
     // =========================================================================
     // --- TÍNH NĂNG MỚI: QUẢN LÝ NĂM HỌC & TỰ ĐỘNG CHIA TUẦN ---
     // =========================================================================

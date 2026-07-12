@@ -45,6 +45,5 @@ router.delete('/sinh-vien/:studentId/khoi-lop', controller.removeStudentFromClas
 router.get('/lop-hoc-phan/:moduleId/sinh-vien', controller.getStudentsByModule);
 router.post('/lop-hoc-phan/:moduleId/sinh-vien', controller.addStudentToModule);
 router.delete('/lop-hoc-phan/:moduleId/sinh-vien/:studentId', controller.removeStudentFromModule);
-router.get('/student-dashboard/:id', controller.getStudentDashboard);
 
 module.exports = router;

@@ -31,7 +31,7 @@ app.use('/api', authRoutes);
 app.use('/api/schedule', scheduleRoutes); 
 
 // ĐÃ SỬA: Kéo academicRoutes lên TRƯỚC categoryRoutes để lấy ưu tiên cao nhất!
-app.use('/api', academicRoutes); 
+app.use('/api/', academicRoutes);
 
 app.use('/api', categoryRoutes); // Thằng này giờ bị rớt xuống ưu tiên thấp hơn
 app.use('/api', roomRoutes); 
