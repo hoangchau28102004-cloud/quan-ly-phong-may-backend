@@ -1,0 +1,31 @@
+# Bỏ qua dependencies cài đặt ở local
+node_modules/
+npm-debug.log
+
+# Bỏ qua cấu hình môi trường bảo mật
+.env
+.env.*
+
+# Bỏ qua git và các thư mục cấu hình IDE/Agent
+.git/
+.gitignore
+.agents/
+.vscode/
+.idea/
+
+# Bỏ qua các file tài liệu và SQL không dùng khi chạy ứng dụng
+*.txt
+*.md
+DB_MIGRATION_NOTES.md
+DOCKER_GUIDE*
+
+# Bỏ qua log và file tạm
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+tmp/
+temp/
+tmp_login.json
