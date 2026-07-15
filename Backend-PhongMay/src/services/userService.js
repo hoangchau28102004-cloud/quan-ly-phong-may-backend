@@ -91,7 +91,20 @@ const getUsers = async (opts = {}) => {
 // 🚀 ĐÃ FIX: Sử dụng Transaction và Tự động Insert vào sinh_vien / giang_vien
 // =========================================================================
 // 🚀 ĐẬP ĐI XÂY LẠI: TỰ ĐỘNG SINH MÃ SV VÀ NIÊN KHÓA TỪ EMAIL
-const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, trang_thai = 1 }) => {
+const buildStudentInfo = ({ email, userId, ma_sinh_vien, nien_khoa }) => {
+  const generatedCode = (email && email.includes('@'))
+    ? email.split('@')[0].toUpperCase()
+    : `SV${userId}`;
+  const studentCode = String(ma_sinh_vien || generatedCode).trim().toUpperCase();
+  let schoolYear = '2023-2026';
+  if (studentCode.length >= 6) {
+    const startYear = parseInt(studentCode.substring(4, 6), 10);
+    if (!Number.isNaN(startYear)) schoolYear = `${2000 + startYear}-${2000 + startYear + 3}`;
+  }
+  return { ma_sinh_vien: studentCode, nien_khoa: nien_khoa || schoolYear };
+};
+
+const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, ma_sinh_vien, nien_khoa, trang_thai = 1 }) => {
   const connection = await db.promise().getConnection();
   try {
     await connection.beginTransaction();
@@ -108,30 +121,12 @@ const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_d
     if (roleNum === 2) {
       console.log("=> [2] Đây là Sinh Viên. Đang tự động xử lý Mã SV và Niên Khóa...");
       
-      // 1. Tự động lấy chữ trước dấu @ của email làm mã sinh viên
-      let maSV = '';
-      if (email && email.includes('@')) {
-        maSV = email.split('@')[0].toUpperCase();
-      } else {
-        maSV = `SV${insertId}`; // Backup nếu vì lý do nào đó không có email
-      }
-
-      // 2. Tự động tính niên khóa (Cắt ký tự thứ 5 và 6 của mã SV)
-      let nienKhoaTuDong = '2023-2026'; // Giá trị mặc định an toàn
-      if (maSV.length >= 6) {
-        const yearPart = maSV.substring(4, 6); 
-        const startYear = parseInt(yearPart, 10);
-        if (!isNaN(startYear)) {
-          const fullStartYear = 2000 + startYear;
-          nienKhoaTuDong = `${fullStartYear}-${fullStartYear + 3}`;
-        }
-      }
-
+      const studentInfo = buildStudentInfo({ email, userId: insertId, ma_sinh_vien, nien_khoa });
       await connection.query(
         `INSERT INTO sinh_vien (ma_nguoi_dung, ma_sinh_vien, ma_lop, nien_khoa, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [insertId, maSV, lop_hoc_id || null, nienKhoaTuDong]
+        [insertId, studentInfo.ma_sinh_vien, lop_hoc_id || null, studentInfo.nien_khoa]
       );
-      console.log(`=> Tạo tự động THÀNH CÔNG! Mã SV: ${maSV} | Niên khóa: ${nienKhoaTuDong}`);
+      console.log(`=> Tạo tự động THÀNH CÔNG! Mã SV: ${studentInfo.ma_sinh_vien} | Niên khóa: ${studentInfo.nien_khoa}`);
     } 
     // NẾU LÀ GIẢNG VIÊN (role = 3)
     else if (roleNum === 3) {
@@ -192,8 +187,8 @@ const getStudentDashboardData = async (userId) => {
     }
 };
 
-const updateUser = async (id, { ho_ten, roleValue, lop_hoc_id, so_dien_thoai, gioi_tinh, ngay_sinh }) => {
-  const conn = db.promise();
+const updateUser = async (id, { ho_ten, roleValue, lop_hoc_id, so_dien_thoai, gioi_tinh, ngay_sinh, ma_sinh_vien, nien_khoa }) => {
+  const connection = await db.promise().getConnection();
   const { roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
 
   const sets = [];
@@ -206,14 +201,55 @@ const updateUser = async (id, { ho_ten, roleValue, lop_hoc_id, so_dien_thoai, gi
   if (genderCol && gioi_tinh !== undefined) { sets.push(`${genderCol} = ?`); vals.push(gioi_tinh); }
   if (dobCol && ngay_sinh !== undefined) { sets.push(`${dobCol} = ?`); vals.push(ngay_sinh); }
 
-  if (sets.length === 0) return 0;
+  if (sets.length === 0) {
+    connection.release();
+    return 0;
+  }
   
   sets.push('updated_at = CURRENT_TIMESTAMP');
   vals.push(id);
   
   const sql = `UPDATE nguoi_dung SET ${sets.join(', ')} WHERE id = ?`;
-  const [result] = await conn.query(sql, vals);
-  return result.affectedRows || 0;
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.query(sql, vals);
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return 0;
+    }
+
+    if (Number(roleValue) === 2) {
+      const [[user]] = await connection.query('SELECT email FROM nguoi_dung WHERE id = ?', [id]);
+      const studentInfo = buildStudentInfo({ email: user.email, userId: id, ma_sinh_vien, nien_khoa });
+      const [[existingStudent]] = await connection.query(
+        'SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?',
+        [id]
+      );
+      if (existingStudent) {
+        await connection.query(
+          `UPDATE sinh_vien
+           SET ma_lop = COALESCE(?, ma_lop), nien_khoa = ?, updated_at = NOW()
+           WHERE ma_nguoi_dung = ?`,
+          [lop_hoc_id || null, studentInfo.nien_khoa, id]
+        );
+      } else {
+        await connection.query(
+          `INSERT INTO sinh_vien
+             (ma_nguoi_dung, ma_sinh_vien, ma_lop, nien_khoa, created_at, updated_at)
+           VALUES (?, ?, ?, ?, NOW(), NOW())`,
+          [id, studentInfo.ma_sinh_vien, lop_hoc_id || null, studentInfo.nien_khoa]
+        );
+      }
+    }
+
+    await connection.commit();
+    return result.affectedRows;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 const resetPassword = async (id, hashedPassword) => {
