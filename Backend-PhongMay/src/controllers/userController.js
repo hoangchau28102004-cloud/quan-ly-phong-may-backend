@@ -63,7 +63,8 @@ const UserController = {
       // ĐÃ SỬA: Lấy thêm gioi_tinh và ngay_sinh từ req.body
       const { 
         ho_ten, ma_vai_tro, vai_tro_id, lop_hoc_id, 
-        so_dien_thoai, soDienThoai, gioi_tinh, ngay_sinh 
+        so_dien_thoai, soDienThoai, gioi_tinh, ngay_sinh,
+        ma_sinh_vien, nien_khoa
       } = req.body;
       
       const roleValue = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
@@ -72,7 +73,9 @@ const UserController = {
       const affected = await userService.updateUser(id, { 
         ho_ten, 
         roleValue, 
-        lop_hoc_id, 
+        lop_hoc_id,
+        ma_sinh_vien,
+        nien_khoa,
         so_dien_thoai: phone,
         gioi_tinh: gioi_tinh, // Gắn vào payload truyền xuống DB
         ngay_sinh: ngay_sinh  // Gắn vào payload truyền xuống DB
