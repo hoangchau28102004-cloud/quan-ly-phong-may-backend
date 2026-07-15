@@ -73,7 +73,6 @@ const getUsers = async (opts = {}) => {
 
   const [results] = await conn.query(sql, params);
 
-  // Normalize dữ liệu để tránh trả về null
   const normalized = results.map(r => {
     if (!r.ho_ten) r.ho_ten = '';
     if (!r.email) r.email = '';
@@ -88,14 +87,16 @@ const getUsers = async (opts = {}) => {
 };
 
 // =========================================================================
-// 🚀 ĐÃ FIX: Sử dụng Transaction và Tự động Insert vào sinh_vien / giang_vien
+// 🚀 ĐÃ FIX LOGIC CẮT MÃ SINH VIÊN (CHẤP LUÔN VIỆC KHÔNG GÕ @)
 // =========================================================================
-// 🚀 ĐẬP ĐI XÂY LẠI: TỰ ĐỘNG SINH MÃ SV VÀ NIÊN KHÓA TỪ EMAIL
 const buildStudentInfo = ({ email, userId, ma_sinh_vien, nien_khoa }) => {
-  const generatedCode = (email && email.includes('@'))
-    ? email.split('@')[0].toUpperCase()
+  // Nếu email có chữ @ thì bóc tách, nếu không có @ thì lấy luôn nguyên cục chữ số đó
+  const generatedCode = email 
+    ? (email.includes('@') ? email.split('@')[0].toUpperCase() : email.trim().toUpperCase())
     : `SV${userId}`;
+    
   const studentCode = String(ma_sinh_vien || generatedCode).trim().toUpperCase();
+  
   let schoolYear = '2023-2026';
   if (studentCode.length >= 6) {
     const startYear = parseInt(studentCode.substring(4, 6), 10);
@@ -117,7 +118,6 @@ const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_d
     const roleNum = Number(roleValue);
     console.log(`=> Tạo nguoi_dung xong. ID: ${insertId} | Role đang xét: ${roleNum}`);
 
-    // NẾU LÀ SINH VIÊN (role = 2) -> TỰ ĐỘNG BÓC TÁCH MÃ SV & NIÊN KHÓA
     if (roleNum === 2) {
       console.log("=> [2] Đây là Sinh Viên. Đang tự động xử lý Mã SV và Niên Khóa...");
       
@@ -128,10 +128,8 @@ const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_d
       );
       console.log(`=> Tạo tự động THÀNH CÔNG! Mã SV: ${studentInfo.ma_sinh_vien} | Niên khóa: ${studentInfo.nien_khoa}`);
     } 
-    // NẾU LÀ GIẢNG VIÊN (role = 3)
     else if (roleNum === 3) {
       console.log("=> [2] Đây là Giảng Viên. Đang Insert sang bảng giang_vien...");
-      // Lấy chữ trước @ làm mã GV (nếu có), không thì tự sinh
       const maGV = (email && email.includes('@')) ? email.split('@')[0].toUpperCase() : `GV${insertId}`;
       await connection.query(
         `INSERT INTO giang_vien (ma_nguoi_dung, ma_giang_vien, created_at, updated_at) VALUES (?, ?, NOW(), NOW())`,
@@ -154,13 +152,11 @@ const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_d
 
 const getStudentDashboardData = async (userId) => {
     try {
-        // 1. Lấy ID sinh viên từ bảng sinh_vien
         const [svRows] = await db.promise().query('SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?', [userId]);
         if (svRows.length === 0) return { coursesCount: 0, upcoming: [], recentAttendance: [], recentIncidents: [] };
         
         const sinhVienId = svRows[0].id;
 
-        // 2. Query lấy dữ liệu (Phải dùng await)
         const [[{ coursesCount }]] = await db.promise().query('SELECT COUNT(*) as coursesCount FROM chi_tiet_lop_hoc_phan WHERE ma_sinh_vien = ?', [sinhVienId]);
         
         const [upcoming] = await db.promise().query(`
