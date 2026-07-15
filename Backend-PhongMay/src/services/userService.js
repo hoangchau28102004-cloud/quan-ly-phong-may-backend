@@ -87,83 +87,111 @@ const getUsers = async (opts = {}) => {
   return normalized;
 };
 
-const createUser = async ({ ho_ten, email, tai_khoan, roleValue, lop_hoc_id, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, trang_thai = 1 }) => {
-  const conn = db.promise();
-  const { hasEmail, hasTaiKhoan, roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
+// =========================================================================
+// 🚀 ĐÃ FIX: Sử dụng Transaction và Tự động Insert vào sinh_vien / giang_vien
+// =========================================================================
+// 🚀 ĐẬP ĐI XÂY LẠI: TỰ ĐỘNG SINH MÃ SV VÀ NIÊN KHÓA TỪ EMAIL
+const createUser = async ({ ho_ten, email, roleValue, lop_hoc_id, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, trang_thai = 1 }) => {
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
 
-  const cols = ['ho_ten', 'mat_khau', 'trang_thai'];
-  const vals = [ho_ten, mat_khau, trang_thai];
-  
-  if (hasEmail && email != null) { cols.push('email'); vals.push(email); }
-  if (hasTaiKhoan && tai_khoan != null) { cols.push('tai_khoan'); vals.push(tai_khoan); }
-  if (roleCol && roleValue != null) { cols.push(roleCol); vals.push(roleValue); }
-  if (lopCol && lop_hoc_id != null) { cols.push(lopCol); vals.push(lop_hoc_id); }
-  if (phoneCol && so_dien_thoai != null) { cols.push(phoneCol); vals.push(so_dien_thoai); }
-  if (genderCol && gioi_tinh != null) { cols.push(genderCol); vals.push(gioi_tinh); }
-  if (dobCol && ngay_sinh != null) { cols.push(dobCol); vals.push(ngay_sinh); }
+    console.log("=> [1] Đang Insert vào bảng nguoi_dung...");
+    const sqlUser = `INSERT INTO nguoi_dung (ma_vai_tro, ho_ten, email, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, trang_thai, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
+    const [userResult] = await connection.query(sqlUser, [roleValue, ho_ten, email, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, trang_thai]);
+    const insertId = userResult.insertId;
 
-  const placeholders = cols.map(() => '?').join(', ');
-  const sql = `INSERT INTO nguoi_dung (${cols.join(', ')}) VALUES (${placeholders})`;
-  const [result] = await conn.query(sql, vals);
-  const insertId = result.insertId || result.insert_id || null;
+    const roleNum = Number(roleValue);
+    console.log(`=> Tạo nguoi_dung xong. ID: ${insertId} | Role đang xét: ${roleNum}`);
 
-  if (insertId) {
-    const selectFields = ['nd.id', 'nd.ho_ten'];
-    if (hasEmail) selectFields.push('nd.email');
-    if (hasTaiKhoan) selectFields.push('nd.tai_khoan');
-    if (roleCol) { selectFields.push(`nd.${roleCol} as vai_tro_id`); selectFields.push('vt.ten_vai_tro as ten_vai_tro'); }
-    if (lopCol) selectFields.push(`nd.${lopCol} as lop_hoc_id`);
-    if (phoneCol) selectFields.push(`nd.${phoneCol} as so_dien_thoai`);
-    if (genderCol) selectFields.push(`nd.${genderCol} as gioi_tinh`);
-    if (dobCol) selectFields.push(`nd.${dobCol} as ngay_sinh`);
-    selectFields.push('nd.trang_thai', 'nd.created_at');
+    // NẾU LÀ SINH VIÊN (role = 2) -> TỰ ĐỘNG BÓC TÁCH MÃ SV & NIÊN KHÓA
+    if (roleNum === 2) {
+      console.log("=> [2] Đây là Sinh Viên. Đang tự động xử lý Mã SV và Niên Khóa...");
+      
+      // 1. Tự động lấy chữ trước dấu @ của email làm mã sinh viên
+      let maSV = '';
+      if (email && email.includes('@')) {
+        maSV = email.split('@')[0].toUpperCase();
+      } else {
+        maSV = `SV${insertId}`; // Backup nếu vì lý do nào đó không có email
+      }
 
-    let selectSql = `SELECT ${selectFields.join(', ')} FROM nguoi_dung nd`;
-    if (roleCol) selectSql += ` LEFT JOIN vai_tro vt ON nd.${roleCol} = vt.id`;
-    const [rows] = await conn.query(selectSql, [insertId]);
-    return rows[0] || { id: insertId };
+      // 2. Tự động tính niên khóa (Cắt ký tự thứ 5 và 6 của mã SV)
+      let nienKhoaTuDong = '2023-2026'; // Giá trị mặc định an toàn
+      if (maSV.length >= 6) {
+        const yearPart = maSV.substring(4, 6); 
+        const startYear = parseInt(yearPart, 10);
+        if (!isNaN(startYear)) {
+          const fullStartYear = 2000 + startYear;
+          nienKhoaTuDong = `${fullStartYear}-${fullStartYear + 3}`;
+        }
+      }
+
+      await connection.query(
+        `INSERT INTO sinh_vien (ma_nguoi_dung, ma_sinh_vien, ma_lop, nien_khoa, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())`,
+        [insertId, maSV, lop_hoc_id || null, nienKhoaTuDong]
+      );
+      console.log(`=> Tạo tự động THÀNH CÔNG! Mã SV: ${maSV} | Niên khóa: ${nienKhoaTuDong}`);
+    } 
+    // NẾU LÀ GIẢNG VIÊN (role = 3)
+    else if (roleNum === 3) {
+      console.log("=> [2] Đây là Giảng Viên. Đang Insert sang bảng giang_vien...");
+      // Lấy chữ trước @ làm mã GV (nếu có), không thì tự sinh
+      const maGV = (email && email.includes('@')) ? email.split('@')[0].toUpperCase() : `GV${insertId}`;
+      await connection.query(
+        `INSERT INTO giang_vien (ma_nguoi_dung, ma_giang_vien, created_at, updated_at) VALUES (?, ?, NOW(), NOW())`,
+        [insertId, maGV]
+      );
+      console.log(`=> Tạo dữ liệu bảng giang_vien THÀNH CÔNG! Mã GV: ${maGV}`);
+    }
+
+    await connection.commit();
+    connection.release();
+    return { id: insertId };
+
+  } catch (error) {
+    await connection.rollback();
+    connection.release();
+    console.error("🔥 LỖI SQL Transaction createUser:", error.message);
+    throw error;
   }
-
-  return null;
 };
 
-    // --- DASHBOARD SINH VIÊN ---
-    
+const getStudentDashboardData = async (userId) => {
+    try {
+        // 1. Lấy ID sinh viên từ bảng sinh_vien
+        const [svRows] = await db.promise().query('SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?', [userId]);
+        if (svRows.length === 0) return { coursesCount: 0, upcoming: [], recentAttendance: [], recentIncidents: [] };
+        
+        const sinhVienId = svRows[0].id;
 
-const getStudentDashboardData= async (userId) => {
-        try {
-            // 1. Lấy ID sinh viên từ bảng sinh_vien
-            const [svRows] = await db.promise().query('SELECT id FROM sinh_vien WHERE ma_nguoi_dung = ?', [userId]);
-            if (svRows.length === 0) return { coursesCount: 0, upcoming: [], recentAttendance: [], recentIncidents: [] };
-            
-            const sinhVienId = svRows[0].id;
+        // 2. Query lấy dữ liệu (Phải dùng await)
+        const [[{ coursesCount }]] = await db.promise().query('SELECT COUNT(*) as coursesCount FROM chi_tiet_lop_hoc_phan WHERE ma_sinh_vien = ?', [sinhVienId]);
+        
+        const [upcoming] = await db.promise().query(`
+            SELECT mh.ten_mon, ls.ngay_hoc_cu_the as thoi_gian, pm.ten_phong as phong 
+            FROM lich_su_dung_phong_may ls
+            JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
+            JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+            JOIN phong_may pm ON ls.ma_phong = pm.id
+            JOIN chi_tiet_lop_hoc_phan ctlhp ON lhp.id = ctlhp.ma_lop_hoc_phan
+            WHERE ctlhp.ma_sinh_vien = ? AND ls.ngay_hoc_cu_the >= CURDATE()
+            LIMIT 5`, [sinhVienId]);
 
-            // 2. Query lấy dữ liệu (Phải dùng await)
-            const [[{ coursesCount }]] = await db.promise().query('SELECT COUNT(*) as coursesCount FROM chi_tiet_lop_hoc_phan WHERE ma_sinh_vien = ?', [sinhVienId]);
-            
-            const [upcoming] = await db.promise().query(`
-                SELECT mh.ten_mon, ls.ngay_hoc_cu_the as thoi_gian, pm.ten_phong as phong 
-                FROM lich_su_dung_phong_may ls
-                JOIN lop_hoc_phan lhp ON ls.ma_lop_hoc_phan = lhp.id
-                JOIN mon_hoc mh ON lhp.ma_mon = mh.id
-                JOIN phong_may pm ON ls.ma_phong = pm.id
-                JOIN chi_tiet_lop_hoc_phan ctlhp ON lhp.id = ctlhp.ma_lop_hoc_phan
-                WHERE ctlhp.ma_sinh_vien = ? AND ls.ngay_hoc_cu_the >= CURDATE()
-                LIMIT 5`, [sinhVienId]);
+        const [recentAttendance] = await db.promise().query(`
+            SELECT mh.ten_mon, dd.trang_thai, dd.thoi_gian_check_in as thoi_gian 
+            FROM diem_danh dd
+            JOIN lop_hoc_phan lhp ON dd.ma_lop_hoc_phan = lhp.id
+            JOIN mon_hoc mh ON lhp.ma_mon = mh.id
+            WHERE dd.ma_sinh_vien = ?
+            ORDER BY dd.thoi_gian_check_in DESC LIMIT 5`, [sinhVienId]);
 
-            const [recentAttendance] = await db.promise().query(`
-                SELECT mh.ten_mon, dd.trang_thai, dd.thoi_gian_check_in as thoi_gian 
-                FROM diem_danh dd
-                JOIN lop_hoc_phan lhp ON dd.ma_lop_hoc_phan = lhp.id
-                JOIN mon_hoc mh ON lhp.ma_mon = mh.id
-                WHERE dd.ma_sinh_vien = ?
-                ORDER BY dd.thoi_gian_check_in DESC LIMIT 5`, [sinhVienId]);
+        return { coursesCount, upcoming, recentAttendance, recentIncidents: [] };
+    } catch (e) {
+        throw new Error("Lỗi Database: " + e.message);
+    }
+};
 
-            return { coursesCount, upcoming, recentAttendance, recentIncidents: [] };
-        } catch (e) {
-            throw new Error("Lỗi Database: " + e.message);
-        }
-    };
 const updateUser = async (id, { ho_ten, roleValue, lop_hoc_id, so_dien_thoai, gioi_tinh, ngay_sinh }) => {
   const conn = db.promise();
   const { roleCol, lopCol, phoneCol, genderCol, dobCol } = await _detectCols();
@@ -223,10 +251,12 @@ const createUsersBulk = async (users) => {
   const created = [];
   for (const u of users) {
     try {
-      const roleValue = (u.vai_tro_id !== undefined) ? u.vai_tro_id : u.ma_vai_tro || u.roleValue;
+      const rawRole = (u.vai_tro_id !== undefined) ? u.vai_tro_id : u.ma_vai_tro || u.roleValue;
+      const roleValue = Number(rawRole);
       const res = await createUser({ 
         ho_ten: u.ho_ten, email: u.email, tai_khoan: u.tai_khoan, roleValue, lop_hoc_id: u.lop_hoc_id, 
-        mat_khau: u.mat_khau, so_dien_thoai: u.so_dien_thoai, gioi_tinh: u.gioi_tinh, ngay_sinh: u.ngay_sinh 
+        mat_khau: u.mat_khau, so_dien_thoai: u.so_dien_thoai, gioi_tinh: u.gioi_tinh, ngay_sinh: u.ngay_sinh,
+        ma_sinh_vien: u.ma_sinh_vien, nien_khoa: u.nien_khoa
       });
       if (res) created.push(res);
     } catch (err) {

@@ -43,7 +43,7 @@ const removeStudentFromClass = (req, res, next) => handleResponse(res, next, () 
 const getStudentsByModule = (req, res, next) => handleResponse(res, next, async () => ({ success: true, data: await service.getStudentsByModule(req.params.moduleId) }));
 const addStudentToModule = (req, res, next) => handleResponse(res, next, () => service.addStudentToModule(req.params.moduleId, req.body.studentId));
 const removeStudentFromModule = (req, res, next) => handleResponse(res, next, () => service.removeStudentFromModule(req.params.moduleId, req.params.studentId));
-
+const getAvailableStudentsForModule = (req, res, next) => handleResponse(res, next, async () => ({ success: true, data: await service.getAvailableStudentsForModule(req.params.moduleId) }));
 
 // =========================================================================
 // --- TÍNH NĂNG MỚI: API NĂM HỌC VÀ TUẦN ---
@@ -59,6 +59,6 @@ module.exports = {
     getModules, createModule, updateModule, deleteModule,
     getTeachers, 
     getStudentsByClass, getAvailableStudents, addStudentToClass, removeStudentFromClass,
-    getStudentsByModule, addStudentToModule, removeStudentFromModule, 
+    getStudentsByModule, addStudentToModule, removeStudentFromModule, getAvailableStudentsForModule,
     getAcademicYears, createAcademicYear, deleteAcademicYear, getWeeksByYear
 };

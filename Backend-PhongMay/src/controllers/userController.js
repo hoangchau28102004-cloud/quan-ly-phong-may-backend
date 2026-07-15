@@ -22,29 +22,32 @@ const UserController = {
   // ==========================================
   // 1. TẠO MỚI NGƯỜI DÙNG
   // ==========================================
+  // 1. TẠO MỚI NGƯỜI DÙNG
   createUser: async (req, res, next) => {
     try {
-      // ĐÃ SỬA: Lấy thêm gioi_tinh và ngay_sinh từ req.body
+      // 🚀 ĐÃ FIX: Lấy ĐẦY ĐỦ các trường như bên Laravel
       const { 
         ho_ten, email, tai_khoan, ma_vai_tro, vai_tro_id, 
-        lop_hoc_id, mat_khau, so_dien_thoai, soDienThoai, 
-        gioi_tinh, ngay_sinh 
+        lop_hoc_id, ma_lop, mat_khau, so_dien_thoai, soDienThoai, 
+        gioi_tinh, ngay_sinh, ma_sinh_vien, nien_khoa, 
+        ma_giang_vien, ma_phong_ban 
       } = req.body;
       
       if (!ho_ten || !mat_khau) return res.status(400).json({ success: false, message: 'Thiếu trường bắt buộc' });
       
-      const roleValue = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
+      const rawRole = (vai_tro_id !== undefined) ? vai_tro_id : ma_vai_tro;
+      const roleValue = Number(rawRole);
       const phone = (so_dien_thoai !== undefined) ? so_dien_thoai : soDienThoai;
+      const classId = (lop_hoc_id !== undefined) ? lop_hoc_id : ma_lop;
       
-      // Hash mật khẩu trước khi tạo
       const hashedPassword = await bcrypt.hash(mat_khau, 12);
 
       const created = await userService.createUser({ 
-        ho_ten, email, tai_khoan, roleValue, lop_hoc_id, 
-        mat_khau: hashedPassword, 
-        so_dien_thoai: phone,
-        gioi_tinh: gioi_tinh, // Gắn vào payload truyền xuống DB
-        ngay_sinh: ngay_sinh  // Gắn vào payload truyền xuống DB
+        ho_ten, email, tai_khoan, roleValue, lop_hoc_id: classId, 
+        mat_khau: hashedPassword, so_dien_thoai: phone,
+        gioi_tinh, ngay_sinh, 
+        ma_sinh_vien, nien_khoa, // Truyền xuống Service
+        ma_giang_vien, ma_phong_ban
       });
       
       res.status(201).json({ success: true, message: 'Tạo người dùng thành công', id: created.id, data: created });

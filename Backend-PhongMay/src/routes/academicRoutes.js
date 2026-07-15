@@ -38,7 +38,8 @@ router.get('/lop-hoc/:classId/sinh-vien', controller.getStudentsByClass);
 router.get('/sinh-vien-tu-do', controller.getAvailableStudents);
 router.post('/lop-hoc/:classId/sinh-vien', controller.addStudentToClass);
 router.delete('/sinh-vien/:studentId/khoi-lop', controller.removeStudentFromClass);
-
+// Đổi lại đường dẫn cho chuẩn RESTful API của app
+router.get('/lop-hoc-phan/:moduleId/sinh-vien-tu-do', controller.getAvailableStudentsForModule);
 // ==========================================
 // Quản lý sinh viên trong LỚP HỌC PHẦN 
 // ==========================================
