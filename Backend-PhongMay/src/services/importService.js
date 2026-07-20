@@ -17,32 +17,35 @@ const createImportReceipt = async (data) => {
     const ghiChuCauHinh = `Bo mạch chủ: ${bo_mach_chu || 'Không rõ'} | Bàn phím: ${ban_phim || 'Không'} | Chuột: ${chuot || 'Không'}`;
     const ghiChuFinal = `Nhà cung cấp: ${nha_cung_cap || 'Không'}\nCấu hình: ${ghiChuCauHinh}\nGhi chú thêm: ${ghi_chu_phieu || ''}`;
 
-    // 1. Lưu thông tin Phiếu Nhập
+    // 1. Lưu thông tin Phiếu Nhập với mã tạm để tránh NULL
+    const tempReceiptCode = `PN-${Date.now()}`;
     const [receiptResult] = await connection.query(
       `INSERT INTO phieu_nhap_may
        (ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-      [ma_phieu_nhap || null, ngay_nhap || null, finalSoLuong, nha_cung_cap || null, ghiChuFinal]
+      [tempReceiptCode, ngay_nhap || null, finalSoLuong, nha_cung_cap || null, ghiChuFinal]
     );
     const idPhieuNhap = receiptResult.insertId;
 
-    // 2. Lưu danh sách máy tính (Sử dụng mã phiếu nhập làm tiền tố để không bao giờ trùng)
+    // 1.1 Sinh mã phiếu nhập tuần tự từ ID
+    const generatedMaPhieuNhap = `PN-${idPhieuNhap.toString().padStart(6, '0')}`;
+    await connection.query(
+      `UPDATE phieu_nhap_may SET ma_phieu_nhap = ? WHERE id = ?`,
+      [generatedMaPhieuNhap, idPhieuNhap]
+    );
+
+    // 2. Lưu danh sách máy tính (Sử dụng mã phiếu nhập đã sinh tự động làm tiền tố)
     if (chi_tiet_may && chi_tiet_may.length > 0) {
-      // Đổi PN-1234 thành MT-1234
-      const prefix = ma_phieu_nhap ? ma_phieu_nhap.replace(/^PN-/, 'MT-') : `MT-${Date.now()}`;
-      
+      const prefix = generatedMaPhieuNhap.replace(/^PN-/, 'MT-');
       let currentIndex = 1;
 
       for (const may of chi_tiet_may) {
         const sttStr = currentIndex.toString().padStart(3, '0');
-        
-        // 🚀 BÍ QUYẾT: GÁN MÃ VÀ TÊN MÁY GIỐNG NHAU HOÀN TOÀN
         const ma_may = `${prefix}-${sttStr}`;
-        const ten_may = ma_may; 
+        const ten_may = ma_may;
         const ma_qr = `QR-${ma_may}`;
         const trang_thai = may.trang_thai || 'active';
 
-        // 2.1 Insert vào bảng may_tinh
         const [mayResult] = await connection.query(
           `INSERT INTO may_tinh
            (ma_phong, ma_may, ten_may, vi_tri, ma_qr, bo_xu_ly, ram, card_do_hoa,
@@ -55,18 +58,17 @@ const createImportReceipt = async (data) => {
           ]
         );
 
-        // 2.2 Ghi vào chi tiết phiếu nhập
         await connection.query(
-            `INSERT INTO chi_tiet_phieu_nhap_may (ma_phieu_nhap, ma_may_tinh, ghi_chu) VALUES (?, ?, ?)`,
-            [idPhieuNhap, mayResult.insertId, `Được sinh tự động từ mã phiếu ${ma_phieu_nhap}`]
+          `INSERT INTO chi_tiet_phieu_nhap_may (ma_phieu_nhap, ma_may_tinh, ghi_chu) VALUES (?, ?, ?)`,
+          [idPhieuNhap, mayResult.insertId, `Được sinh tự động từ mã phiếu ${generatedMaPhieuNhap}`]
         );
 
-        currentIndex++; 
+        currentIndex++;
       }
     }
 
     await connection.commit();
-    return { success: true, message: 'Tạo phiếu nhập và sinh máy thành công' };
+    return { success: true, message: 'Tạo phiếu nhập và sinh máy thành công', ma_phieu_nhap: generatedMaPhieuNhap };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -75,5 +77,19 @@ const createImportReceipt = async (data) => {
   }
 };
 
-// CHỈ EXPORT ĐÚNG HÀM NÀY TẠI ĐÂY
-module.exports = { createImportReceipt };
+const getImportReceipts = async () => {
+  const connection = await db.promise().getConnection();
+
+  try {
+    const [rows] = await connection.query(
+      `SELECT id, ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu AS ghi_chu_phieu, created_at, updated_at
+       FROM phieu_nhap_may
+       ORDER BY created_at DESC`
+    );
+    return rows;
+  } finally {
+    connection.release();
+  }
+};
+
+module.exports = { createImportReceipt, getImportReceipts };

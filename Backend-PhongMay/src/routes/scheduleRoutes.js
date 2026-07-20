@@ -26,5 +26,5 @@ router.patch('/:id/status', controller.updateBooking);
 
 router.get('/student', controller.getStudentSchedule);
 router.get('/details/:id', controller.getScheduleDetail);
-
+router.put('/:id', controller.updateSchedule);
 module.exports = router;

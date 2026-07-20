@@ -16,6 +16,7 @@ const importRoutes = require('./routes/importRoutes');
 const issueRoutes = require('./routes/issueRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const app = express();
 
 // Enable CORS and allow Authorization header for dev frontend
@@ -27,23 +28,43 @@ app.use(cors({
 app.use(express.json());
 
 // ================= Gắn Routes vào hệ thống =================
-app.use('/api', authRoutes);
-app.use('/api/schedule', scheduleRoutes); 
+const routeMappings = [
+  { prefix: '/api', router: authRoutes },
+  { prefix: '/api/schedule', router: scheduleRoutes },
+  { prefix: '/api/notifications', router: notificationRoutes },
 
-// ĐÃ SỬA: Kéo academicRoutes lên TRƯỚC categoryRoutes để lấy ưu tiên cao nhất!
-app.use('/api/', academicRoutes);
+  // Academic routes cần ưu tiên trước categoryRoutes để tránh xung đột đường dẫn
+  { prefix: '/api/', router: academicRoutes },
 
-app.use('/api', categoryRoutes); // Thằng này giờ bị rớt xuống ưu tiên thấp hơn
-app.use('/api', roomRoutes); 
-app.use('/api/phong-may', roomRoutes);
-app.use('/api', userRoutes);
-app.use('/api', assetsRoutes);
-app.use('/api', maintenanceRoutes);
-app.use('/api/borrow-return', borrowReturnRoutes); 
-app.use('/api', importRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/issues', issueRoutes);
-app.use('/api', departmentRoutes);
+  { prefix: '/api', router: categoryRoutes },
+  { prefix: '/api', router: roomRoutes },
+  { prefix: '/api/phong-may', router: roomRoutes },
+  { prefix: '/api', router: userRoutes },
+  { prefix: '/api', router: assetsRoutes },
+  { prefix: '/api', router: maintenanceRoutes },
+  { prefix: '/api/borrow-return', router: borrowReturnRoutes },
+  { prefix: '/api', router: importRoutes },
+  { prefix: '/api/attendance', router: attendanceRoutes },
+  { prefix: '/api/issues', router: issueRoutes },
+  { prefix: '/api', router: departmentRoutes },
+];
+
+for (const mapping of routeMappings) {
+  app.use(mapping.prefix, mapping.router);
+}
+
+app.get('/api/_debug/routes', (req, res) => {
+  const routeList = routeMappings.map((mapping) => ({
+    prefix: mapping.prefix,
+    routes: mapping.router.stack
+      .filter((layer) => layer.route)
+      .map((layer) => ({
+        path: layer.route.path,
+        methods: Object.keys(layer.route.methods),
+      })),
+  }));
+  res.json({ success: true, routes: routeList });
+});
 
 // Middleware bắt lỗi chung
 app.use((err, req, res, next) => {

@@ -10,11 +10,23 @@ const handleResponse = async (res, next, action) => {
 
 // ================= BÁO CÁO SỰ CỐ =================
 const getIncidents = (req, res, next) => handleResponse(res, next, async () => ({ success: true, data: await service.getIncidents() }));
+
 const createIncident = async (req, res, next) => {
     try {
+        // Lấy ID người báo cáo từ token (req.user) hoặc từ body gửi lên
+        const ma_nguoi_bao_cao = req.user?.id || req.body.ma_nguoi_bao_cao;
+
+        // CHẶN LỖI: Bắt buộc phải có ID người dùng
+        if (!ma_nguoi_bao_cao) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không xác định được người báo cáo. Vui lòng đăng nhập lại!'
+            });
+        }
+
         await service.createIncident({ 
             ...req.body, 
-            ma_nguoi_bao_cao: req.user?.id || req.body.ma_nguoi_bao_cao || 1 
+            ma_nguoi_bao_cao: ma_nguoi_bao_cao 
         });
         res.status(200).json({ success: true, message: 'Báo cáo sự cố thành công!' });
     } catch (error) {
@@ -38,6 +50,7 @@ const reportIncident = async (req, res, next) => {
     }
     return createIncident(req, res, next);
 };
+
 const updateIncident = (req, res, next) => handleResponse(res, next, () => service.updateIncident(req.params.id, req.body));
 const deleteIncident = (req, res, next) => handleResponse(res, next, () => service.deleteIncident(req.params.id));
 
@@ -48,6 +61,7 @@ const updateTicket = (req, res, next) => handleResponse(res, next, () => service
 const deleteTicket = (req, res, next) => handleResponse(res, next, () => service.deleteTicket(req.params.id));
 
 const getLogs = (req, res, next) => handleResponse(res, next, async () => ({ success: true, data: await service.getMaintenanceLogs() }));
+
 // QUAN TRỌNG NHẤT LÀ ĐÂY (XUẤT HÀM ĐỂ BÊN ROUTE NHẬN ĐƯỢC)
 module.exports = { 
     getIncidents, 
@@ -57,7 +71,7 @@ module.exports = {
     getTickets, 
     createTicket, 
     updateTicket, 
-    deleteTicket ,
-    reportIncident ,
+    deleteTicket,
+    reportIncident,
     getLogs
 };

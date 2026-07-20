@@ -89,21 +89,34 @@ const createSchedule = async (data) => {
     return result.insertId;
 };
 const updateSchedule = async (id, data) => {
+    // Dùng COALESCE: Nếu Frontend không gửi lên trường nào thì DB tự giữ nguyên giá trị cũ
+    // Bổ sung ma_giang_vien để lưu thông tin giảng viên dạy thay
     const sql = `
         UPDATE lich_su_dung_phong_may 
-        SET ma_phong=?, ma_lop_hoc_phan=?, ngay_hoc_cu_the=?, so_tiet_bat_dau=?, so_tiet_ket_thuc=?, loai_lich=?, thu_trong_tuan=?
-        WHERE id=?
+        SET 
+            ma_phong = COALESCE(?, ma_phong), 
+            ma_lop_hoc_phan = COALESCE(?, ma_lop_hoc_phan), 
+            ngay_hoc_cu_the = COALESCE(?, ngay_hoc_cu_the), 
+            so_tiet_bat_dau = COALESCE(?, so_tiet_bat_dau), 
+            so_tiet_ket_thuc = COALESCE(?, so_tiet_ket_thuc), 
+            loai_lich = COALESCE(?, loai_lich), 
+            thu_trong_tuan = COALESCE(?, thu_trong_tuan),
+            ma_giang_vien = COALESCE(?, ma_giang_vien) 
+        WHERE id = ?
     `;
+    
     const [result] = await db.promise().query(sql, [
-        data.ma_phong,
-        data.ma_lop_hoc_phan,
-        data.ngay_hoc_cu_the,
-        data.so_tiet_bat_dau,
-        data.so_tiet_ket_thuc,
-        data.loai_lich,
-        data.thu_trong_tuan,
+        data.ma_phong || null,
+        data.ma_lop_hoc_phan || null,
+        data.ngay_hoc_cu_the || null,    // Dùng khi muốn dời lịch (chọn ngày mới)
+        data.so_tiet_bat_dau || null,
+        data.so_tiet_ket_thuc || null,
+        data.loai_lich || null,
+        data.thu_trong_tuan || null,     // Nếu dời lịch sang thứ khác thì gửi kèm trường này
+        data.ma_giang_vien || null,      // Dùng khi muốn đổi giảng viên dạy thay
         id
     ]);
+    
     return result.affectedRows;
 };
 

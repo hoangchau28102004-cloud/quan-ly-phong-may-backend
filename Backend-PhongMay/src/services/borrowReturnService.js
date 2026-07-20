@@ -58,16 +58,14 @@ const BorrowReturnService = {
 // TẠO PHIẾU MƯỢN VÀ KHÓA MÁY (Đã sửa theo CSDL mới dùng 'nguoi_muon')
 // ============================================================================
     createBorrowTicket : async (data) => {
-        // Hứng các trường từ Flutter truyền xuống
         const { nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, ghi_chu, may_tinh_ids } = data;
         const connection = await db.promise().getConnection();
 
         try {
             await connection.beginTransaction();
 
-            const ma_phieu_muon = 'PM-' + Date.now().toString().slice(-6);
+            const tempCode = 'PM-' + Date.now().toString().slice(-12);
 
-            // Xử lý ngày giờ chuẩn ISO cho MySQL
             let formattedDate = ngay_muon;
             if (!formattedDate) {
                 const now = new Date();
@@ -77,7 +75,6 @@ const BorrowReturnService = {
                 formattedDate = formattedDate.slice(0, 19).replace('T', ' ');
             }
 
-            // 1. TẠO PHIẾU MƯỢN (Dùng nguoi_muon thay vì ma_giang_vien)
             const queryPhieuMuon = `
                 INSERT INTO phieu_muon_may 
                 (ma_phieu_muon, nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, trang_thai, ghi_chu, created_at, updated_at) 
@@ -85,35 +82,34 @@ const BorrowReturnService = {
             `;
             
             const [resultPM] = await connection.execute(queryPhieuMuon, [
-                ma_phieu_muon, 
-                nguoi_muon,     // Đã thay cột khóa ngoại thành cột nhập tự do
-                ma_phong_ban, 
-                formattedDate, 
-                so_luong, 
-                ly_do_muon, 
+                tempCode,
+                nguoi_muon,
+                ma_phong_ban,
+                formattedDate,
+                so_luong,
+                ly_do_muon,
                 ghi_chu
             ]);
             
             const phieuMuonId = resultPM.insertId;
+            const generatedMaPhieuMuon = `PM-${phieuMuonId.toString().padStart(6, '0')}`;
+            await connection.query(
+              'UPDATE phieu_muon_may SET ma_phieu_muon = ? WHERE id = ?',
+              [generatedMaPhieuMuon, phieuMuonId]
+            );
 
-            // 2. LƯU CHI TIẾT & KHÓA MÁY TÍNH
             if (may_tinh_ids && may_tinh_ids.length > 0) {
                 for (const maMay of may_tinh_ids) {
-                    
-                    // Lấy ID máy tính dựa vào ID hoặc Mã chữ (an toàn cho mọi kiểu payload Flutter gửi)
                     const [may] = await connection.query('SELECT id FROM may_tinh WHERE ma_may = ? OR id = ?', [maMay, maMay]);
                     
                     if (may.length > 0) {
                         const idMay = may[0].id;
-                        
-                        // Lưu vào bảng chi_tiet_phieu_muon_may
                         await connection.execute(
                             `INSERT INTO chi_tiet_phieu_muon_may (ma_phieu_muon, ma_may_tinh, tinh_trang_khi_muon, created_at, updated_at) 
                             VALUES (?, ?, 'Hoạt động bình thường', NOW(), NOW())`,
                             [phieuMuonId, idMay]
                         );
 
-                        // Đổi trạng thái máy thành 'borrowed' để nó biến mất khỏi kho
                         await connection.execute(
                             `UPDATE may_tinh SET trang_thai = 'borrowed', updated_at = NOW() WHERE id = ?`,
                             [idMay] 
@@ -123,7 +119,7 @@ const BorrowReturnService = {
             }
 
             await connection.commit();
-            return { success: true, message: 'Tạo phiếu mượn thành công', ma_phieu_muon };
+            return { success: true, message: 'Tạo phiếu mượn thành công', ma_phieu_muon: generatedMaPhieuMuon };
         } catch (error) {
             await connection.rollback();
             throw error;
@@ -170,13 +166,18 @@ const BorrowReturnService = {
         );
 
         // 3. Tạo 1 Phiếu Trả Máy mới tinh để lưu vết lịch sử
-        const ma_phieu_tra = 'PT-' + Date.now().toString().slice(-6);
+        const tempCode = 'PT-' + Date.now().toString().slice(-12);
         const [pt] = await connection.query(`
             INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, thoi_gian_tra, so_luong, trang_thai, ghi_chu, created_at, updated_at)
             VALUES (?, ?, ?, ?, 'Hoàn thành', ?, NOW(), NOW())
-        `, [ma_phieu_tra, ma_phieu_muon_id, thoi_gian_tra || new Date(), so_luong_tra, ghi_chu]);
+        `, [tempCode, ma_phieu_muon_id, thoi_gian_tra || new Date(), so_luong_tra, ghi_chu]);
         
         const phieuTraId = pt.insertId;
+        const generatedMaPhieuTra = `PT-${phieuTraId.toString().padStart(6, '0')}`;
+        await connection.query(
+            'UPDATE phieu_tra_may SET ma_phieu_tra = ? WHERE id = ?',
+            [generatedMaPhieuTra, phieuTraId]
+        );
 
         // 4. Xử lý từng máy tính được trả
         for (const maMay of machine_ids) {
@@ -204,7 +205,7 @@ const BorrowReturnService = {
         }
 
         await connection.commit();
-        return { success: true, message: 'Xác nhận trả máy thành công!' };
+        return { success: true, message: 'Xác nhận trả máy thành công!', ma_phieu_tra: generatedMaPhieuTra };
     } catch (err) {
         await connection.rollback();
         throw err;
