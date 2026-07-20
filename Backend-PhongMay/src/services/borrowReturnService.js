@@ -64,7 +64,7 @@ const BorrowReturnService = {
         try {
             await connection.beginTransaction();
 
-            const tempCode = 'PM-' + Date.now().toString().slice(-12);
+            const tempCode = `PM-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
             let formattedDate = ngay_muon;
             if (!formattedDate) {
@@ -166,7 +166,7 @@ const BorrowReturnService = {
         );
 
         // 3. Tạo 1 Phiếu Trả Máy mới tinh để lưu vết lịch sử
-        const tempCode = 'PT-' + Date.now().toString().slice(-12);
+        const tempCode = `PT-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
         const [pt] = await connection.query(`
             INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, thoi_gian_tra, so_luong, trang_thai, ghi_chu, created_at, updated_at)
             VALUES (?, ?, ?, ?, 'Hoàn thành', ?, NOW(), NOW())

@@ -209,15 +209,16 @@ const returnMachine = async (req, res, next) => {
     if (pm.length === 0) return res.status(404).json({ success: false, message: 'Phiếu mượn không tồn tại!' });
     
     const soLuongHienTai = pm[0].so_luong;
-    const ma_phieu_tra = 'PT-' + Date.now().toString().slice(-6);
     const dateToSave = thoi_gian_tra ? new Date(thoi_gian_tra).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     // 1. Lưu phiếu trả tổng
     const sql = `INSERT INTO phieu_tra_may 
                  (ma_phieu_tra, ma_phieu_muon, ma_giang_vien, thoi_gian_tra, so_luong, trang_thai, ghi_chu) 
                  VALUES (?, ?, NULL, ?, ?, 'confirmed', ?)`;
-    const [resultPt] = await conn.query(sql, [ma_phieu_tra, ma_phieu_muon_id, dateToSave, so_luong, ghi_chu]);
+    const [resultPt] = await conn.query(sql, [`PT-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`, ma_phieu_muon_id, dateToSave, so_luong, ghi_chu]);
     const idPhieuTra = resultPt.insertId;
+    const ma_phieu_tra = `PT-${idPhieuTra.toString().padStart(6, '0')}`;
+    await conn.query('UPDATE phieu_tra_may SET ma_phieu_tra = ? WHERE id = ?', [ma_phieu_tra, idPhieuTra]);
 
     // 2. LƯU CHI TIẾT TỪNG MÁY TRẢ
     if (machine_ids && machine_ids.length > 0) {
@@ -238,7 +239,7 @@ const returnMachine = async (req, res, next) => {
       await conn.query(`UPDATE phieu_muon_may SET so_luong = ?, trang_thai = 'Đang mượn' WHERE id = ?`, [soLuongConLai, ma_phieu_muon_id]);
     }
 
-    res.status(201).json({ success: true, message: 'Tạo phiếu trả máy thành công!' });
+    res.status(201).json({ success: true, message: 'Tạo phiếu trả máy thành công!', ma_phieu_tra });
   } catch (error) {
     console.error("LỖI TRẢ MÁY:", error);
     next(error);

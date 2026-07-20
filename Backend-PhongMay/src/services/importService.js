@@ -28,7 +28,7 @@ const createImportReceipt = async (data) => {
     const idPhieuNhap = receiptResult.insertId;
 
     // 1.1 Sinh mã phiếu nhập tuần tự từ ID
-    const generatedMaPhieuNhap = `PN-${idPhieuNhap.toString().padStart(6, '0')}`;
+    const generatedMaPhieuNhap = `PN-${idPhieuNhap}`;
     await connection.query(
       `UPDATE phieu_nhap_may SET ma_phieu_nhap = ? WHERE id = ?`,
       [generatedMaPhieuNhap, idPhieuNhap]

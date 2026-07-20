@@ -166,8 +166,8 @@ const createImportReceipt = async (data) => {
             throw new Error("Lỗi: Ứng dụng Flutter chưa truyền lên [ma_phong]. Không thể lưu vào Database!");
         }
 
-        // Tạo sẵn các biến default để Database không bị sập ER_BAD_NULL_ERROR
-        const ma_phieu_nhap = data.ma_phieu_nhap || `PN-${Date.now()}`;
+        // Tạo sẵn mã phiếu tạm để tránh NULL trong DB; sẽ cập nhật lại sau khi có insertId
+        const initialReceiptCode = data.ma_phieu_nhap || `PN-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
         const ngay_nhap = data.ngay_nhap || new Date().toISOString().split('T')[0];
         const so_luong = data.so_luong || data.tong_so_luong || (data.chi_tiet_may ? data.chi_tiet_may.length : 0);
         const nha_cung_cap = data.nha_cung_cap || 'Không xác định';
@@ -189,9 +189,15 @@ const createImportReceipt = async (data) => {
         const [receiptResult] = await connection.query(
             `INSERT INTO phieu_nhap_may (ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghi_chu, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-            [ma_phieu_nhap, ngay_nhap, so_luong, nha_cung_cap, ghiChuFinal]
+            [initialReceiptCode, ngay_nhap, so_luong, nha_cung_cap, ghiChuFinal]
         );
         const idPhieuNhap = receiptResult.insertId;
+
+        const ma_phieu_nhap = `PN-${idPhieuNhap}`;
+        await connection.query(
+            `UPDATE phieu_nhap_may SET ma_phieu_nhap = ? WHERE id = ?`,
+            [ma_phieu_nhap, idPhieuNhap]
+        );
 
         // 2. Chạy vòng lặp sinh máy
         if (data.chi_tiet_may && data.chi_tiet_may.length > 0) {
@@ -465,7 +471,6 @@ const createReturnTicket = async (data) => {
         const current_so_luong = phieuMuon[0].so_luong;
 
         // 2. Tạo Phiếu Trả Máy mới
-        const ma_phieu_tra = 'PT-' + Date.now().toString().slice(-6);
         let formattedDate = thoi_gian_tra;
         if (!formattedDate) {
             const now = new Date();
@@ -480,8 +485,10 @@ const createReturnTicket = async (data) => {
             INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, ma_giang_vien, so_luong, ghi_chu, thoi_gian_tra, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
         `;
-        const [resultTra] = await connection.execute(queryPhieuTra, [ma_phieu_tra, ma_phieu_muon_id, ma_giang_vien, so_luong_tra, ghi_chu, formattedDate]);
+        const [resultTra] = await connection.execute(queryPhieuTra, [`PT-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`, ma_phieu_muon_id, ma_giang_vien, so_luong_tra, ghi_chu, formattedDate]);
         const phieuTraId = resultTra.insertId;
+        const ma_phieu_tra = `PT-${phieuTraId.toString().padStart(6, '0')}`;
+        await connection.query(`UPDATE phieu_tra_may SET ma_phieu_tra = ? WHERE id = ?`, [ma_phieu_tra, phieuTraId]);
 
         // 3. Xử lý nhả từng máy
         for (const maMay of may_tinh_ids) {
