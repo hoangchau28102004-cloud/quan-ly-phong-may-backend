@@ -34,14 +34,16 @@ const createImportReceipt = async (data) => {
       [generatedMaPhieuNhap, idPhieuNhap]
     );
 
-    // 2. Lưu danh sách máy tính (Sử dụng mã phiếu nhập đã sinh tự động làm tiền tố)
+    // 2. Lưu danh sách máy tính (Sử dụng ID phiếu nhập làm tiền tố để ra đúng chuẩn PC-...)
     if (chi_tiet_may && chi_tiet_may.length > 0) {
-      const prefix = generatedMaPhieuNhap.replace(/^PN-/, 'MT-');
+      // ĐÃ SỬA DÒNG NÀY: Lấy trực tiếp ID phiếu nhập ghép với PC-
+      const prefix = `PC-${idPhieuNhap}`; 
       let currentIndex = 1;
 
       for (const may of chi_tiet_may) {
         const sttStr = currentIndex.toString().padStart(3, '0');
-        const ma_may = `${prefix}-${sttStr}`;
+        // Kết quả sẽ ra chuẩn: PC-2-001, PC-3-001...
+        const ma_may = `${prefix}-${sttStr}`; 
         const ten_may = ma_may;
         const ma_qr = `QR-${ma_may}`;
         const trang_thai = may.trang_thai || 'active';

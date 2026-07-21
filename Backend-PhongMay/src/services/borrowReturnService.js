@@ -44,6 +44,7 @@ const BorrowReturnService = {
     const [rows] = await db.promise().query(sql);
     return rows;
   },
+  
   updateBorrowStatus: async (id, trang_thai) => {
     const [result] = await db.promise().query('UPDATE phieu_muon_may SET trang_thai = ? WHERE id = ?', [trang_thai, id]);
     return result.affectedRows;
@@ -54,80 +55,85 @@ const BorrowReturnService = {
     const [result] = await db.promise().query('UPDATE phieu_muon_may SET trang_thai = ? WHERE id = ?', ['Đã trả', ma_phieu_muon_id]);
     return result.affectedRows;
   },
-// ============================================================================
-// TẠO PHIẾU MƯỢN VÀ KHÓA MÁY (Đã sửa theo CSDL mới dùng 'nguoi_muon')
-// ============================================================================
-    createBorrowTicket : async (data) => {
-        const { nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, ghi_chu, may_tinh_ids } = data;
-        const connection = await db.promise().getConnection();
 
-        try {
-            await connection.beginTransaction();
+  // ============================================================================
+  // TẠO PHIẾU MƯỢN VÀ KHÓA MÁY (Tự động sinh mã PM-001, PM-002...)
+  // ============================================================================
+  createBorrowTicket : async (data) => {
+      const { nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, ghi_chu, may_tinh_ids } = data;
+      const connection = await db.promise().getConnection();
 
-            const tempCode = `PM-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+      try {
+          await connection.beginTransaction();
 
-            let formattedDate = ngay_muon;
-            if (!formattedDate) {
-                const now = new Date();
-                now.setHours(now.getHours() + 7);
-                formattedDate = now.toISOString().slice(0, 19).replace('T', ' ');
-            } else if (formattedDate.includes('T')) {
-                formattedDate = formattedDate.slice(0, 19).replace('T', ' ');
-            }
+          let formattedDate = ngay_muon;
+          if (!formattedDate) {
+              const now = new Date();
+              now.setHours(now.getHours() + 7);
+              formattedDate = now.toISOString().slice(0, 19).replace('T', ' ');
+          } else if (formattedDate.includes('T')) {
+              formattedDate = formattedDate.slice(0, 19).replace('T', ' ');
+          }
 
-            const queryPhieuMuon = `
-                INSERT INTO phieu_muon_may 
-                (ma_phieu_muon, nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, trang_thai, ghi_chu, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, 'Đang mượn', ?, NOW(), NOW())
-            `;
-            
-            const [resultPM] = await connection.execute(queryPhieuMuon, [
-                tempCode,
-                nguoi_muon,
-                ma_phong_ban,
-                formattedDate,
-                so_luong,
-                ly_do_muon,
-                ghi_chu
-            ]);
-            
-            const phieuMuonId = resultPM.insertId;
-            const generatedMaPhieuMuon = `PM-${phieuMuonId.toString().padStart(6, '0')}`;
-            await connection.query(
-              'UPDATE phieu_muon_may SET ma_phieu_muon = ? WHERE id = ?',
-              [generatedMaPhieuMuon, phieuMuonId]
-            );
+          // 🚀 LOGIC TỰ ĐỘNG TẠO MÃ PHIẾU MƯỢN (PM-001)
+          const [lastBorrowTicket] = await connection.query('SELECT ma_phieu_muon FROM phieu_muon_may ORDER BY id DESC LIMIT 1');
+          let nextBorrowId = 1;
+          if (lastBorrowTicket.length > 0 && lastBorrowTicket[0].ma_phieu_muon) {
+              const parts = lastBorrowTicket[0].ma_phieu_muon.split('-');
+              if (parts.length === 2) {
+                  nextBorrowId = parseInt(parts[1], 10) + 1;
+              }
+          }
+          const ma_phieu_muon = `PM-${nextBorrowId.toString().padStart(3, '0')}`;
 
-            if (may_tinh_ids && may_tinh_ids.length > 0) {
-                for (const maMay of may_tinh_ids) {
-                    const [may] = await connection.query('SELECT id FROM may_tinh WHERE ma_may = ? OR id = ?', [maMay, maMay]);
-                    
-                    if (may.length > 0) {
-                        const idMay = may[0].id;
-                        await connection.execute(
-                            `INSERT INTO chi_tiet_phieu_muon_may (ma_phieu_muon, ma_may_tinh, tinh_trang_khi_muon, created_at, updated_at) 
-                            VALUES (?, ?, 'Hoạt động bình thường', NOW(), NOW())`,
-                            [phieuMuonId, idMay]
-                        );
+          const queryPhieuMuon = `
+              INSERT INTO phieu_muon_may 
+              (ma_phieu_muon, nguoi_muon, ma_phong_ban, ngay_muon, so_luong, ly_do_muon, trang_thai, ghi_chu, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, 'Đang mượn', ?, NOW(), NOW())
+          `;
+          
+          const [resultPM] = await connection.execute(queryPhieuMuon, [
+              ma_phieu_muon, // Sử dụng mã vừa sinh trực tiếp
+              nguoi_muon,
+              ma_phong_ban,
+              formattedDate,
+              so_luong,
+              ly_do_muon,
+              ghi_chu
+          ]);
+          
+          const phieuMuonId = resultPM.insertId;
 
-                        await connection.execute(
-                            `UPDATE may_tinh SET trang_thai = 'borrowed', updated_at = NOW() WHERE id = ?`,
-                            [idMay] 
-                        );
-                    }
-                }
-            }
+          if (may_tinh_ids && may_tinh_ids.length > 0) {
+              for (const maMay of may_tinh_ids) {
+                  const [may] = await connection.query('SELECT id FROM may_tinh WHERE ma_may = ? OR id = ?', [maMay, maMay]);
+                  
+                  if (may.length > 0) {
+                      const idMay = may[0].id;
+                      await connection.execute(
+                          `INSERT INTO chi_tiet_phieu_muon_may (ma_phieu_muon, ma_may_tinh, tinh_trang_khi_muon, created_at, updated_at) 
+                          VALUES (?, ?, 'Hoạt động bình thường', NOW(), NOW())`,
+                          [phieuMuonId, idMay]
+                      );
 
-            await connection.commit();
-            return { success: true, message: 'Tạo phiếu mượn thành công', ma_phieu_muon: generatedMaPhieuMuon };
-        } catch (error) {
-            await connection.rollback();
-            throw error;
-        } finally {
-            connection.release();
-        }
-    },
-    // SỬA HÀM NÀY TRONG: src/services/borrowReturnService.js
+                      await connection.execute(
+                          `UPDATE may_tinh SET trang_thai = 'borrowed', updated_at = NOW() WHERE id = ?`,
+                          [idMay] 
+                      );
+                  }
+              }
+          }
+
+          await connection.commit();
+          return { success: true, message: 'Tạo phiếu mượn thành công', ma_phieu_muon: ma_phieu_muon };
+      } catch (error) {
+          await connection.rollback();
+          throw error;
+      } finally {
+          connection.release();
+      }
+  },
+
   getBorrowHistoryByNguoiMuon: async (nguoi_muon) => {
     const sql = `
       SELECT pm.*, pb.ten_phong_ban
@@ -136,11 +142,13 @@ const BorrowReturnService = {
       WHERE pm.nguoi_muon LIKE ?
       ORDER BY pm.id DESC
     `;
-    // Thêm ký tự % vào 2 đầu để tìm kiếm chứa từ khóa (VD: tìm "Admin" vẫn ra "Admin IT Lab")
     const [rows] = await db.promise().query(sql, [`%${nguoi_muon}%`]);
     return rows;
   },
-  // THÊM HÀM NÀY VÀO CUỐI FILE (trước dấu } của BorrowReturnService)
+
+  // ============================================================================
+  // XỬ LÝ TRẢ MÁY (Tự động sinh mã PT-001, PT-002...)
+  // ============================================================================
   processReturnMachines: async (data) => {
     const { ma_phieu_muon_id, machine_ids, ghi_chu, thoi_gian_tra } = data;
     const connection = await db.promise().getConnection();
@@ -165,23 +173,28 @@ const BorrowReturnService = {
             [so_luong_moi, trang_thai_moi, ma_phieu_muon_id]
         );
 
-        // 3. Tạo 1 Phiếu Trả Máy mới tinh để lưu vết lịch sử
-        const tempCode = `PT-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+        // 🚀 LOGIC TỰ ĐỘNG TẠO MÃ PHIẾU TRẢ (PT-001)
+        const [lastReturnTicket] = await connection.query('SELECT ma_phieu_tra FROM phieu_tra_may ORDER BY id DESC LIMIT 1');
+        let nextReturnId = 1;
+        if (lastReturnTicket.length > 0 && lastReturnTicket[0].ma_phieu_tra) {
+            const parts = lastReturnTicket[0].ma_phieu_tra.split('-');
+            if (parts.length === 2) {
+                nextReturnId = parseInt(parts[1], 10) + 1;
+            }
+        }
+        const ma_phieu_tra = `PT-${nextReturnId.toString().padStart(3, '0')}`;
+
+        // 3. Tạo 1 Phiếu Trả Máy mới tinh để lưu vết lịch sử (Insert trực tiếp mã PT)
+        // Lưu ý: Mình sửa 'Hoàn thành' thành 'confirmed' để khớp với db phpMyAdmin bạn gửi
         const [pt] = await connection.query(`
             INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, thoi_gian_tra, so_luong, trang_thai, ghi_chu, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'Hoàn thành', ?, NOW(), NOW())
-        `, [tempCode, ma_phieu_muon_id, thoi_gian_tra || new Date(), so_luong_tra, ghi_chu]);
+            VALUES (?, ?, ?, ?, 'confirmed', ?, NOW(), NOW())
+        `, [ma_phieu_tra, ma_phieu_muon_id, thoi_gian_tra || new Date(), so_luong_tra, ghi_chu]);
         
         const phieuTraId = pt.insertId;
-        const generatedMaPhieuTra = `PT-${phieuTraId.toString().padStart(6, '0')}`;
-        await connection.query(
-            'UPDATE phieu_tra_may SET ma_phieu_tra = ? WHERE id = ?',
-            [generatedMaPhieuTra, phieuTraId]
-        );
 
         // 4. Xử lý từng máy tính được trả
         for (const maMay of machine_ids) {
-            // Tìm id thật của máy tính từ bảng may_tinh dựa vào mã máy (VD: PC-9054-001)
             const [may] = await connection.query('SELECT id FROM may_tinh WHERE ma_may = ?', [maMay]);
             if (may.length > 0) {
                 const idMay = may[0].id;
@@ -205,7 +218,7 @@ const BorrowReturnService = {
         }
 
         await connection.commit();
-        return { success: true, message: 'Xác nhận trả máy thành công!', ma_phieu_tra: generatedMaPhieuTra };
+        return { success: true, message: 'Xác nhận trả máy thành công!', ma_phieu_tra: ma_phieu_tra };
     } catch (err) {
         await connection.rollback();
         throw err;

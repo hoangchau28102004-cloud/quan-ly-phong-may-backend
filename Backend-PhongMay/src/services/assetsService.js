@@ -457,20 +457,18 @@ const approveBorrowRequest = async (phieuId, machineIds) => {
 // ============================================================================
 const createReturnTicket = async (data) => {
     const { ma_phieu_muon_id, may_tinh_ids, ghi_chu, thoi_gian_tra } = data;
-    const so_luong_tra = may_tinh_ids.length; // Số lượng trả tính bằng mảng Admin đã tick
+    const so_luong_tra = may_tinh_ids.length; 
     const connection = await db.promise().getConnection();
 
     try {
         await connection.beginTransaction();
 
-        // 1. Lấy thông tin phiếu mượn gốc
-        const [phieuMuon] = await connection.query('SELECT ma_giang_vien, so_luong FROM phieu_muon_may WHERE id = ?', [ma_phieu_muon_id]);
+        // ⚠️ ĐÃ SỬA: Sửa lại tên cột truy vấn cho khớp với CSDL thực tế (Bỏ ma_giang_vien)
+        const [phieuMuon] = await connection.query('SELECT so_luong FROM phieu_muon_may WHERE id = ?', [ma_phieu_muon_id]);
         if (phieuMuon.length === 0) throw new Error('Phiếu mượn không tồn tại!');
 
-        const ma_giang_vien = phieuMuon[0].ma_giang_vien;
         const current_so_luong = phieuMuon[0].so_luong;
 
-        // 2. Tạo Phiếu Trả Máy mới
         let formattedDate = thoi_gian_tra;
         if (!formattedDate) {
             const now = new Date();
@@ -480,15 +478,31 @@ const createReturnTicket = async (data) => {
             formattedDate = formattedDate.slice(0, 19).replace('T', ' ');
         }
 
-        // Bảng phieu_tra_may mới không còn cột trang_thai nữa
+        // 🚀 LOGIC TỰ ĐỘNG TẠO MÃ PHIẾU TRẢ (Định dạng: PT-001, PT-002...)
+        const [lastTicket] = await connection.query('SELECT ma_phieu_tra FROM phieu_tra_may ORDER BY id DESC LIMIT 1');
+        let nextId = 1;
+        if (lastTicket.length > 0 && lastTicket[0].ma_phieu_tra) {
+            // Tách lấy phần số đằng sau dấu gạch ngang
+            const parts = lastTicket[0].ma_phieu_tra.split('-');
+            if (parts.length === 2) {
+                nextId = parseInt(parts[1], 10) + 1;
+            }
+        }
+        const ma_phieu_tra = `PT-${nextId.toString().padStart(3, '0')}`;
+
+        // ⚠️ ĐÃ SỬA: Insert khớp với các cột trên phpMyAdmin (Thêm trang_thai, bỏ ma_giang_vien)
         const queryPhieuTra = `
-            INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, ma_giang_vien, so_luong, ghi_chu, thoi_gian_tra, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+            INSERT INTO phieu_tra_may (ma_phieu_tra, ma_phieu_muon, thoi_gian_tra, so_luong, trang_thai, ghi_chu, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'confirmed', ?, NOW(), NOW())
         `;
-        const [resultTra] = await connection.execute(queryPhieuTra, [`PT-PENDING-${Date.now()}-${Math.floor(Math.random() * 1000000)}`, ma_phieu_muon_id, ma_giang_vien, so_luong_tra, ghi_chu, formattedDate]);
+        const [resultTra] = await connection.execute(queryPhieuTra, [
+            ma_phieu_tra, 
+            ma_phieu_muon_id, 
+            formattedDate,
+            so_luong_tra, 
+            ghi_chu || null 
+        ]);
         const phieuTraId = resultTra.insertId;
-        const ma_phieu_tra = `PT-${phieuTraId.toString().padStart(6, '0')}`;
-        await connection.query(`UPDATE phieu_tra_may SET ma_phieu_tra = ? WHERE id = ?`, [ma_phieu_tra, phieuTraId]);
 
         // 3. Xử lý nhả từng máy
         for (const maMay of may_tinh_ids) {
@@ -497,20 +511,17 @@ const createReturnTicket = async (data) => {
             if (may.length > 0) {
                 const mayId = may[0].id;
 
-                // 3a. Lưu vào chi tiết phiếu trả
                 await connection.execute(
                     `INSERT INTO chi_tiet_phieu_tra_may (ma_phieu_tra, ma_may_tinh, tinh_trang_khi_tra, created_at, updated_at)
                      VALUES (?, ?, 'Hoạt động bình thường', NOW(), NOW())`,
                     [phieuTraId, mayId]
                 );
-
-                // 3b. Mở khóa máy (Đang mượn -> Về kho Active)
+                
                 await connection.execute(
                     `UPDATE may_tinh SET trang_thai = 'active', updated_at = NOW() WHERE id = ?`,
                     [mayId]
                 );
-
-                // 3c. Đánh dấu máy này trong chi tiết phiếu MƯỢN là 'Đã trả' để UI không cho tick nữa
+                
                 await connection.execute(
                     `UPDATE chi_tiet_phieu_muon_may SET tinh_trang_khi_muon = 'Đã trả' WHERE ma_phieu_muon = ? AND ma_may_tinh = ?`,
                     [ma_phieu_muon_id, mayId]
