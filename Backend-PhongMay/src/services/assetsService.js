@@ -201,7 +201,7 @@ const createImportReceipt = async (data) => {
 
         // 2. Chạy vòng lặp sinh máy
         if (data.chi_tiet_may && data.chi_tiet_may.length > 0) {
-            const prefix = ma_phieu_nhap.replace(/^PN-/, 'MT-');
+            const prefix = ma_phieu_nhap.replace(/^PN-/, 'PC-');
             let currentIndex = 1;
 
             for (const may of data.chi_tiet_may) {
